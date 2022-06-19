@@ -9,7 +9,7 @@ namespace Atode
     {
         private const int FONTCOUNT = 90;
         private const int DEGREESTART = 105;    // カウントダウンして0になったらタイトル画面へ移行
-        private const int BLACKSTAY = 25;           // アニメが終わってからの余韻期間
+        private const int BLACKOUT_STAY = 25;           // アニメが終わってからの余韻期間
         int degree;
         int blackcount;
         bool degreestart;
@@ -22,7 +22,7 @@ namespace Atode
             int y, ay, by;
 
             degree = DEGREESTART;
-            blackcount = BLACKSTAY;
+            blackcount = BLACKOUT_STAY;
 
             mapfont = new int[g.celwidth(), g.celheight()];
             mapcolor = new Color[g.celwidth(), g.celheight()];

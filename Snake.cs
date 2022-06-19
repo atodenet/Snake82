@@ -17,8 +17,9 @@ namespace Snake82
     enum SnakeMode
     {
         Active,
-        Death,
-        Standby,
+        Death,      // 死にアニメーション中
+        Standby,    // 待機状態、使われない
+        Corpse,     // 死体を表示
     }
 
     // ヘビの基底クラス。ここから自機、敵を派生する。
@@ -41,12 +42,12 @@ namespace Snake82
         protected int dirlast;      // 今の頭の方向(0,1,2,3)
         protected int dirratio;     // 頭の方向の遷移率 0 - INTEGRAL_RANGE、INTEGRAL_RANGEに達したあとはrotだけで頭の向きは決まる
         protected int buflength;    // 体位置メモリバッファ長
-        protected Position[] body;  // 体のマップ上位置
+        protected Point[] body;  // 体のマップ上位置
         protected Color headcolor = Color.Black;
         protected Color bodycolor = Color.Black;
         protected int chip = (int)Chip.Snake;
         protected int chiphead = (int)Chip.SnakeHead;
-        public int mode;            // enum snakemode
+        public int mode;            // esnakemode
         protected int deathcounddown;
         protected int deathspeed;
         protected int rainbowcowntdown;
@@ -56,12 +57,12 @@ namespace Snake82
         public void Init(int startx, int starty)
         {
             buflength = BUF_ONCE;
-            body = new Position[buflength + BUF_ONCE_ADD];
+            body = new Point[buflength + BUF_ONCE_ADD];
             length = 1;
             headno = 1;
             posratio = 0;
-            body[0].x = body[1].x = startx;
-            body[0].y = body[1].y = starty;
+            body[0].X = body[1].X = startx;
+            body[0].Y = body[1].Y = starty;
             direction = 3; dirlast = 0;
             dirratio = 0;
             speed = 40;
@@ -99,14 +100,14 @@ namespace Snake82
             return MathHelper.ToRadians(-rot);
         }
 
-        public void Draw(Game1 g,int mapwidth,int mapheight,int upadding)
+        public void Draw(Game1 g,int mapwidth,int mapheight,int uppadding)
         {   // 蛇の描画
-            Rectangle rec;
+            Rectangle rect;
             
             for (int no=length-1; 0<=no; no--)
             {   // 蛇の体を１個ずつ描画 頭は最後
-                Position pos1 = body[headno - no];
-                Position pos2 = body[headno - no-1];
+                Point pos1 = body[headno - no];
+                Point pos2 = body[headno - no-1];
                 bool mirrorX = false;
                 bool mirrorY = false;
                 Color color = (no == 0 ? headcolor : bodycolor);
@@ -131,7 +132,7 @@ namespace Snake82
                     }
                     color = new Color(red, green, blue);
                 }
-                if (mode == (int)SnakeMode.Death)
+                if (mode == (int)SnakeMode.Death || mode == (int)SnakeMode.Corpse)
                 {   // 死んだら頭から黒くなる
                     int deathno = length - (deathcounddown / deathspeed);
                     if (no <= deathno)
@@ -141,82 +142,82 @@ namespace Snake82
                 }
 
                 // 画面の上下端、左右端はループさせるため、端にいる場合は下側あるいは右側に寄せる
-                if (pos1.x <= 1 && (pos2.x <= 1 || mapwidth - 2 < pos2.x))
+                if (pos1.X <= 1 && (pos2.X <= 1 || mapwidth - 2 < pos2.X))
                 {
-                    pos1.x += mapwidth;
+                    pos1.X += mapwidth;
                     mirrorX = true;
                 }
-                if (pos2.x <= 1 && (pos1.x <= 1 || mapwidth - 2 < pos1.x))
+                if (pos2.X <= 1 && (pos1.X <= 1 || mapwidth - 2 < pos1.X))
                 {
-                    pos2.x += mapwidth;
+                    pos2.X += mapwidth;
                     mirrorX = true;
                 }
-                if (pos1.y <= 1 && (pos2.y <= 1 || mapheight - 2 < pos2.y))
+                if (pos1.Y <= 1 && (pos2.Y <= 1 || mapheight - 2 < pos2.Y))
                 {
-                    pos1.y += mapheight;
+                    pos1.Y += mapheight;
                     mirrorY = true;
                 }
-                if (pos2.y <= 1 && (pos1.y <= 1 || mapheight - 2 < pos1.y))
+                if (pos2.Y <= 1 && (pos1.Y <= 1 || mapheight - 2 < pos1.Y))
                 {
-                    pos2.y += mapheight;
+                    pos2.Y += mapheight;
                     mirrorY = true;
                 }
 
-                rec = g.scr.TextBoxBetween(pos1.x, pos1.y + upadding, pos2.x, pos2.y + upadding, posratio, INTEGRAL_RANGE);
+                rect = g.scr.TextBoxBetween(pos1.X, pos1.Y + uppadding, pos2.X, pos2.Y + uppadding, posratio, INTEGRAL_RANGE);
 
                 if (no == 0)
                 {   // 先頭はhead描画 頭だけ方向がある
                     Vector2 sft = new Vector2(8f, 8f); // テクスチャ上の中心位置（画面上ではない）
-                    rec.X += rec.Width / 2;
-                    rec.Y += rec.Height / 2;
+                    rect.X += rect.Width / 2;
+                    rect.Y += rect.Height / 2;
                     float rot = GetHeadRotation();
-                    g.spriteBatch.Draw(g.fonts, rec, g.Font((char)4), color, rot, sft, SpriteEffects.None, 0f);
+                    g.spriteBatch.Draw(g.fonts, rect, g.Font((char)4), color, rot, sft, SpriteEffects.None, 0f);
 
                     if (mirrorX)
                     {
-                        rec = g.scr.TextBoxBetween( pos1.x - mapwidth, pos1.y + upadding,
-                                                    pos2.x - mapwidth, pos2.y + upadding, posratio, INTEGRAL_RANGE);
-                        rec.X += rec.Width / 2;
-                        rec.Y += rec.Height / 2;
-                        g.spriteBatch.Draw(g.fonts, rec, g.Font((char)4), color, rot, sft, SpriteEffects.None, 0f);
+                        rect = g.scr.TextBoxBetween( pos1.X - mapwidth, pos1.Y + uppadding,
+                                                    pos2.X - mapwidth, pos2.Y + uppadding, posratio, INTEGRAL_RANGE);
+                        rect.X += rect.Width / 2;
+                        rect.Y += rect.Height / 2;
+                        g.spriteBatch.Draw(g.fonts, rect, g.Font((char)4), color, rot, sft, SpriteEffects.None, 0f);
                     }
                     if (mirrorY)
                     {
-                        rec = g.scr.TextBoxBetween( pos1.x, pos1.y-mapheight + upadding, 
-                                                    pos2.x, pos2.y-mapheight + upadding, posratio, INTEGRAL_RANGE);
-                        rec.X += rec.Width / 2;
-                        rec.Y += rec.Height / 2;
-                        g.spriteBatch.Draw(g.fonts, rec, g.Font((char)4), color, rot, sft, SpriteEffects.None, 0f);
+                        rect = g.scr.TextBoxBetween( pos1.X, pos1.Y-mapheight + uppadding, 
+                                                    pos2.X, pos2.Y-mapheight + uppadding, posratio, INTEGRAL_RANGE);
+                        rect.X += rect.Width / 2;
+                        rect.Y += rect.Height / 2;
+                        g.spriteBatch.Draw(g.fonts, rect, g.Font((char)4), color, rot, sft, SpriteEffects.None, 0f);
                     }
                     if( mirrorX && mirrorY)
                     {
-                        rec = g.scr.TextBoxBetween( pos1.x - mapwidth, pos1.y - mapheight + upadding, 
-                                                    pos2.x - mapwidth, pos2.y - mapheight + upadding, posratio, INTEGRAL_RANGE);
-                        rec.X += rec.Width / 2;
-                        rec.Y += rec.Height / 2;
-                        g.spriteBatch.Draw(g.fonts, rec, g.Font((char)4), color, rot, sft, SpriteEffects.None, 0f);
+                        rect = g.scr.TextBoxBetween( pos1.X - mapwidth, pos1.Y - mapheight + uppadding, 
+                                                    pos2.X - mapwidth, pos2.Y - mapheight + uppadding, posratio, INTEGRAL_RANGE);
+                        rect.X += rect.Width / 2;
+                        rect.Y += rect.Height / 2;
+                        g.spriteBatch.Draw(g.fonts, rect, g.Font((char)4), color, rot, sft, SpriteEffects.None, 0f);
                     }
                 }
                 else
                 {   // 体を描画
-                    g.spriteBatch.Draw(g.fonts, rec, g.Font((char)5), color);
+                    g.spriteBatch.Draw(g.fonts, rect, g.Font((char)5), color);
                     if (mirrorX)
                     {
-                        rec = g.scr.TextBoxBetween(pos1.x - mapwidth, pos1.y + upadding,
-                                                    pos2.x - mapwidth, pos2.y + upadding, posratio, INTEGRAL_RANGE);
-                        g.spriteBatch.Draw(g.fonts, rec, g.Font((char)5), color);
+                        rect = g.scr.TextBoxBetween(pos1.X - mapwidth, pos1.Y + uppadding,
+                                                    pos2.X - mapwidth, pos2.Y + uppadding, posratio, INTEGRAL_RANGE);
+                        g.spriteBatch.Draw(g.fonts, rect, g.Font((char)5), color);
                     }
                     if (mirrorY)
                     {
-                        rec = g.scr.TextBoxBetween(pos1.x, pos1.y - mapheight + upadding,
-                                                    pos2.x, pos2.y - mapheight + upadding, posratio, INTEGRAL_RANGE);
-                        g.spriteBatch.Draw(g.fonts, rec, g.Font((char)5), color);
+                        rect = g.scr.TextBoxBetween(pos1.X, pos1.Y - mapheight + uppadding,
+                                                    pos2.X, pos2.Y - mapheight + uppadding, posratio, INTEGRAL_RANGE);
+                        g.spriteBatch.Draw(g.fonts, rect, g.Font((char)5), color);
                     }
                     if (mirrorX && mirrorY)
                     {
-                        rec = g.scr.TextBoxBetween(pos1.x - mapwidth, pos1.y - mapheight + upadding,
-                                                    pos2.x - mapwidth, pos2.y - mapheight + upadding, posratio, INTEGRAL_RANGE);
-                        g.spriteBatch.Draw(g.fonts, rec, g.Font((char)5), color);
+                        rect = g.scr.TextBoxBetween(pos1.X - mapwidth, pos1.Y - mapheight + uppadding,
+                                                    pos2.X - mapwidth, pos2.Y - mapheight + uppadding, posratio, INTEGRAL_RANGE);
+                        g.spriteBatch.Draw(g.fonts, rect, g.Font((char)5), color);
                     }
                 }
 
@@ -260,11 +261,17 @@ namespace Snake82
                     if( --deathcounddown <= -30)
                     {   // マイナスは最後の余韻
                         deathcounddown = 0;
-                        mode = (int)SnakeMode.Standby;
+                        SetAfterDeath();
                     }
                     break;
             }
             return rc;
+        }
+
+        // 死にアニメが終わった蛇は待機状態になる（何にも使われない）
+        protected virtual void SetAfterDeath()
+        {
+            mode = (int)SnakeMode.Standby;
         }
         protected void GoNext(Game1 g, int[,] map)
         {   // 次のマスへ移動する処理
@@ -279,7 +286,7 @@ namespace Snake82
                 length++;
                 if ((buflength - length) < (BUF_ONCE / 2))
                 {   // ボディバッファのサイズが大分窮屈になったので拡張
-                    Position[] newbody = new Position[buflength + BUF_ONCE + BUF_ONCE_ADD];
+                    Point[] newbody = new Point[buflength + BUF_ONCE + BUF_ONCE_ADD];
                     for(int i=0; i<buflength; i++)
                     {
                         newbody[i] = body[i];
@@ -299,8 +306,8 @@ namespace Snake82
                 headno -= moves;
             }
             // 頭のマップ位置を決める
-            x = body[headno - 1].x;
-            y = body[headno - 1].y;
+            x = body[headno - 1].X;
+            y = body[headno - 1].Y;
             switch (direction)
             {
                 case 0: // 上へ
@@ -329,8 +336,8 @@ namespace Snake82
                     break;
             }
             dirnow = direction; // 今回のマス進行時の頭の方向を覚えておく（逆方向移動防止用、回転アニメーション用）
-            body[headno].x = x;
-            body[headno].y = y;
+            body[headno].X = x;
+            body[headno].Y = y;
             // map判定（衝突など）するならこの後
         }
         public void AddBody()
@@ -384,15 +391,15 @@ namespace Snake82
             if (mode == (int)SnakeMode.Active)
             {   
                 int bodyno = headno;
-                Position pos = body[bodyno--];
+                Point pos = body[bodyno--];
 
                 // 最初に頭をプロット（体で上書きするため）
-                map[pos.x, pos.y] = chiphead;
+                map[pos.X, pos.Y] = chiphead;
 
                 for (int i = 1; i < length; i++)
                 {   // 体をプロット （i=0は頭）
                     pos = body[bodyno--];
-                    map[pos.x, pos.y] = chip;
+                    map[pos.X, pos.Y] = chip;
                 }
             }
         }
@@ -400,9 +407,9 @@ namespace Snake82
         // 頭の位置にあるchipを返す。EnemyやSnakeなら、頭が衝突している。
         public int GetHit(int[,] map)
         {   
-            return map[body[headno].x, body[headno].y];
+            return map[body[headno].X, body[headno].Y];
         }
-        public Position GetHead()
+        public Point GetHead()
         {
             return body[headno];
         }
@@ -411,17 +418,14 @@ namespace Snake82
         public void SetDeath()
         {
             mode = (int)SnakeMode.Death;
-            if(length < DEATH_TIME/10)
+            deathspeed = DEATH_TIME / length;
+            if (deathspeed > 8)
             {
-                deathspeed = 10;
+                deathspeed = 8;
             }
-            else
+            else if (deathspeed <= 0)
             {
-                deathspeed = DEATH_TIME / length;
-                if(deathspeed <= 0)
-                {
-                    deathspeed = 1;
-                }
+                deathspeed = 1;
             }
             deathcounddown = (length+1) * deathspeed;
         }
@@ -435,6 +439,86 @@ namespace Snake82
         {
             speed += spd;
             return speed;
+        }
+
+        // 画面（ゲームマップ）のサイズ拡張に対応して、体の位置を調節する
+        // 体の長さは伸ばさない。新しく生まれたマップ位置に中間パーツを挿入し、その分最後端は一個前へ進む
+        public void ExpandMap(int xadd)
+        {
+            int cnt;
+            int bodyno;
+            int copyno;
+
+            // 右側への画面拡張に対応する
+            bodyno = headno;    // 頭から始まって番号は減っていく 頭が最も大きい番号
+            for (cnt = 0; cnt < length; cnt++,bodyno--)
+            {
+                // 隣なのにXが2以上離れていれば左右端を跨いだと判断
+                if(2<= Math.Abs(body[bodyno].X - body[bodyno - 1].X))
+                {   // bodynoとbodyno-1の間に一個挿入する
+                    // まず最後尾へ１個ずつずらす(後ろから順番にコピー）
+                    copyno = headno - length + 1; // 最後尾のno
+                    for(; copyno <= bodyno-1; copyno++)
+                    {
+                        body[copyno - 1] = body[copyno];
+                    }
+                    // 新しい中間パーツのX座標は拡張後右端なので+1
+                    body[bodyno - 1].X = Math.Max(body[bodyno].X, body[bodyno - 1].X) + 1;
+                    // 全体1個後ろずらししたので、このチェックルーチンも一つ進める
+                    cnt++;
+                    bodyno--;
+                }
+            }
+
+            // 下側への画面拡張に対応する
+            bodyno = headno;    // 頭から始まって番号は減っていく 頭が最も大きい番号
+            for (cnt = 0; cnt < length; cnt++, bodyno--)
+            {
+                // 隣なのにYが2以上離れていれば上下端を跨いだと判断
+                if (2 <= Math.Abs(body[bodyno].Y - body[bodyno - 1].Y))
+                {   // bodynoとbodyno-1の間に一個挿入する
+                    // まず最後尾へ１個ずつずらす(後ろから順番にコピー）
+                    copyno = headno - length + 1; // 最後尾のno
+                    for (; copyno <= bodyno - 1; copyno++)
+                    {
+                        body[copyno - 1] = body[copyno];
+                    }
+                    // 新しい中間パーツのX座標は拡張後右端なので+1
+                    body[bodyno - 1].Y = Math.Max(body[bodyno].Y, body[bodyno - 1].Y) + 1;
+                    // 全体1個後ろずらししたので、このチェックルーチンも一つ進める
+                    cnt++;
+                    bodyno--;
+                }
+            }
+
+            if (0<xadd) {
+                // 左側への画面拡張に対応する
+                // まず、全パーツを1ずつ右へずらす
+                bodyno = headno;
+                for (int i = 0; i <= length; i++, bodyno--)
+                {
+                    body[bodyno].X += xadd;
+                }
+                bodyno = headno;    // 頭から始まって番号は減っていく 頭が最も大きい番号
+                for (cnt = 0; cnt < length; cnt++, bodyno--)
+                {
+                    // 隣なのにXが2以上離れていれば左右端を跨いだと判断
+                    if (2 <= Math.Abs(body[bodyno].X - body[bodyno - 1].X))
+                    {   // bodynoとbodyno-1の間に一個挿入する
+                        // まず最後尾へ１個ずつずらす(後ろから順番にコピー）
+                        copyno = headno - length + 1; // 最後尾のno
+                        for (; copyno <= bodyno - 1; copyno++)
+                        {
+                            body[copyno - 1] = body[copyno];
+                        }
+                        // 新しい中間パーツのX座標は拡張後左端なので0
+                        body[bodyno - 1].X = 0;
+                        // 全体1個後ろずらししたので、このチェックルーチンも一つ進める
+                        cnt++;
+                        bodyno--;
+                    }
+                }
+            }
         }
     }
 }

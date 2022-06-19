@@ -14,6 +14,7 @@ namespace Atode
 
     class Scene
     {   // シーンの基底クラス。ここからゲーム画面やタイトル画面を派生する。
+        protected const int INTEGRAL_RANGE = 1000;
         protected int upcounter = 0;    // ゲームにとって時間を表す
         protected int nextScene = 0;    // 次のシーンを指定（自分自身ではシーンを切り替えることができないから呼び出し元に指示する）
 

@@ -8,7 +8,6 @@ namespace Atode
 {
     class SceneTitle : Scene
     {
-        private const int CEL_CHANGE_RATE = 3;
         private SnakeDemo snake;
         private bool deathmode = false;
 

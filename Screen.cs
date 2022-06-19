@@ -35,7 +35,7 @@ namespace Atode
         private int _celWidthNext = 0;  // 横キャラクター数の変更中（遷移中）
         private int _celHeightNext = 0; // 遷移後の次の縦キャラクター数
         private int _celNextRatio = 0;  // 新しいキャラクター画面サイズへの遷移率
-        private int _celXShift = 0;      // 画面がどれだけ右側に拡張されたか
+        private int _celXShift = 0;      // X原点が初期から移動した量 画面がどれだけ左側に拡張されたか
 
         public int viewwidth() { return _viewport.Width; }      // ゲーム画面のドット幅
         public int viewheight() { return _viewport.Height; }
@@ -242,6 +242,9 @@ namespace Atode
 
             return box;
         }
+
+        // 1と2の中間座標を返す
+        // ratio1が0であれば2の座標
         public Rectangle TextBoxBetween(int cx1, int cy1, int cx2, int cy2, int ratio1, int range)
         {
             Rectangle r1 = TextBox(cx1, cy1);
@@ -335,10 +338,12 @@ namespace Atode
             }
             return rc;
         }
+
+        // キャラクター画面サイズ変更率の増加 このクラスにおけるUpdateに相当する 
+        // 100%を指定すれば1回で遷移完了
+        // return 遷移完了:1 キャラクター画面サイズに変化なし:0
         public int CelNextAdd(int addRatio)
-        {  // キャラクター画面サイズ変更率の指定 
-           // 100%を指定すれば遷移完了
-           // return 遷移完了:1 キャラクター画面サイズに変化なし:0
+        {  
             if (_celNextRatio <= 0)
             { // 今は遷移中ではない
                 return -1;

@@ -19,6 +19,7 @@ namespace Snake82
         public Screen scr;
         public SaveData save;
         public Texture2D fonts = null;
+        public Texture2D txgameover = null;
         public Random rand;
         private bool _resized = false;
         private Viewport _viewedge;
@@ -98,6 +99,7 @@ namespace Snake82
 
             // TODO: use this.Content to load your game content here
             fonts = Content.Load<Texture2D>("font16snake");
+            txgameover = Content.Load<Texture2D>("gameover9");
             effect = new BasicEffect(GraphicsDevice);
             effect.VertexColorEnabled = true;
         }
