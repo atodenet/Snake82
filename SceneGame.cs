@@ -11,6 +11,7 @@ namespace Atode
         None = 0,
         Startup,
         Play,
+        Death,
         Gameover,
         Ranking,
     }
@@ -20,6 +21,9 @@ namespace Atode
         private const int ITEM_NUM = 3;             // アイテム個数は固定
         private Item[] apple;
         private SnakeHero hero;
+        protected const int ENEMY_MAX = 1000;
+        private SnakeEnemy[] enemy;
+        private int enemynum;
 
         private const int CEL_CHANGE_RATE = 3;      // キャラクター画面拡大スピード
         private int celchangerate;                  // キャラクター画面拡大中はスピードを示す 普段は0
@@ -49,6 +53,7 @@ namespace Atode
         {
             hero = new SnakeHero();
             apple = new Item[ITEM_NUM];
+
             for (int no = 0; no < ITEM_NUM; no++)
             {
                 apple[no] = new Item();
@@ -66,12 +71,16 @@ namespace Atode
             AllocMap(g.celwidth() - 1, g.celheight() - 1 - UPPER_PADDING);
             initialmapheight = mapheight();
 
+            celchangerate = 0;      // キャラクター画面拡大中のみ正数
+            cellastxshift = 0;      // キャラクター画面サイズは初期値
+
             // 自機を初期化、位置を指定
             hero.Init(g.celwidth()/2,g.celheight()/2);
             herolastlength = hero.length;   // 画面拡大のキー情報
-            
-            celchangerate = 0;      // キャラクター画面拡大中のみ正数
-            cellastxshift = 0;      // キャラクター画面サイズは初期値
+
+            // 敵を初期化
+            enemy = new SnakeEnemy[ENEMY_MAX];
+            enemynum = 0;
 
             // 自機マップ配置
             hero.Plot(map);
@@ -163,34 +172,69 @@ namespace Atode
                 apple[no].Plot(map);
             }
             hero.Plot(map);
+            for (no = 0; no < enemynum; no++)
+            {
+                enemy[no].Plot(map);
+            }
 
             //--------------------------------------------------------------------------------
             // 各オブジェクトのUpdate
-            if( gamephase != (int)Phase.Startup)
+            if ( gamephase != (int)Phase.Startup)
             {   // startupの最中に自機が動いてしまうと動きがバグる
                 // 自機を動かす
                 hero.Update(g, map);
-                int rc = hero.CheckHit(map);
-                if (rc == 1)
-                {   // アイテムを取った
-                    Point headpos = hero.GetHead();
-                    // どのアイテムか探す
-                    for (no = 0; no < ITEM_NUM; no++)
+                // プレイフェーズ中のみ自機ヒット判定
+                if(gamephase == (int)Phase.Play)
+                {
+                    Point headpos;
+                    int rc = hero.CheckHit(map);
+                    switch (rc)
                     {
-                        if (apple[no].CheckHit(headpos))
-                        {   // このアイテムが取られたので、アイテムを消す
-                            apple[no].SetDeath();
+                        case 1:
+                            // アイテムを取った
+                            headpos = hero.GetHead();
+                            // どのアイテムか探す
+                            for (no = 0; no < ITEM_NUM; no++)
+                            {
+                                if (apple[no].CheckHit(headpos))
+                                {   // このアイテムが取られたので、アイテムを消す
+                                    apple[no].SetDeath();
+                                    break;
+                                }
+                            }
                             break;
-                        }
+                        case 2:
+                            // 敵を倒した
+                            headpos = hero.GetHead();
+                            // どの敵か探す
+                            break;
+                    }
+
+                }
+                // デスアニメ中は静止した世界
+                if (gamephase == (int)Phase.Death)
+                {   // 敵は限定的に動く
+                    for (no = 0; no < enemynum; no++)
+                    {
+                        enemy[no].UpdateStopWorld(g, map);
                     }
                 }
-
-                // アイテムを動かす
-                for (no = 0; no < ITEM_NUM; no++)
+                else
                 {
-                    if (apple[no].Update())
-                    {   // 消えていたアイテムが再誕生
-                        apple[no].Reborn(SearchMapSpace(g));
+                    // 敵を動かす
+                    for (no = 0; no < enemynum; no++)
+                    {
+                        enemy[no].Update(g, map);
+                    }
+
+
+                    // アイテムを動かす
+                    for (no = 0; no < ITEM_NUM; no++)
+                    {
+                        if (apple[no].Update())
+                        {   // 消えていたアイテムが再誕生
+                            apple[no].Reborn(SearchMapSpace(g));
+                        }
                     }
                 }
             }
@@ -200,17 +244,22 @@ namespace Atode
             switch (gamephase)
             {
                 case (int)Phase.Play:
-                    // ゲームプレイ中、自機が死体になったらゲームオーバーへ
+                    // ゲームプレイ中、自機が死んだらデスアニメモードへ遷移
+                    if (hero.mode == (int)SnakeMode.Death)
+                    {
+                        gamephase = (int)Phase.Death;
+                    }
+                    break;
+                case (int)Phase.Death:
+                    // デスアニメ中、自機が死体になったらゲームオーバーへ
                     if (hero.mode == (int)SnakeMode.Corpse)
                     {
-                        if (gamephase == (int)Phase.Play)
-                        {   // ゲームオーバーアニメーションのフェーズへ遷移
-                            gamephase = (int)Phase.Gameover;
-                            gameoverzoom = (g.celheight() - UPPER_PADDING) / g.txgameover.Height;   // 1以上、boardの表示倍率
-                            gameoverzoom = Math.Max(gameoverzoom, 1);
-                            // X方向移動距離（CEL単位、1CEL移動=INTEGRAL_RANGE）右に隠れてスタート、左に隠れきるまでの距離 最後の+は余韻
-                            gameoverpos = (g.celwidth() + g.txgameover.Width * gameoverzoom) * INTEGRAL_RANGE;
-                        }
+                        // ゲームオーバーアニメーションのフェーズへ遷移
+                        gamephase = (int)Phase.Gameover;
+                        gameoverzoom = (g.celheight() - UPPER_PADDING) / g.txgameover.Height;   // 1以上、boardの表示倍率
+                        gameoverzoom = Math.Max(gameoverzoom, 1);
+                        // X方向移動距離（CEL単位、1CEL移動=INTEGRAL_RANGE）右に隠れてスタート、左に隠れきるまでの距離 最後の+は余韻
+                        gameoverpos = (g.celwidth() + g.txgameover.Width * gameoverzoom) * INTEGRAL_RANGE;
                     }
                     break;
                 case (int)Phase.Gameover:
@@ -232,8 +281,8 @@ namespace Atode
             }
 
             //--------------------------------------------------------------------------------
-            // 自機を動かした後で、最後に判定する
-            // 自機が伸びたら画面拡大
+            // 自機が伸びたら画面拡大する処理 
+            // 自機を動かした後で、これはUpdateの最後で判定する
             if ( herolastlength < hero.length)
             {
                 herolastlength = hero.length;
@@ -242,6 +291,14 @@ namespace Atode
                 {
                     g.scr.CelResizeNext(g.celheight() + 1, CEL_CHANGE_RATE);
                     celchangerate = CEL_CHANGE_RATE;
+                    // 画面が拡大すると敵も生まれる
+                    if(enemynum < ENEMY_MAX)
+                    {
+                        Point pos = SearchMapSpace(g);
+                        SnakeEnemy en = new SnakeEnemy();
+                        en.Init(pos.X, pos.Y);
+                        enemy[enemynum++] = en;
+                    }
                 }
             }
             base.Update(g);
@@ -278,6 +335,7 @@ namespace Atode
         }
         public new void Draw(Game1 g)
         {
+            int no;
             // フレーム描画
             // spriteのドット絵をボケない指定
             g.spriteBatch.Begin(samplerState: SamplerState.PointClamp);
@@ -296,7 +354,7 @@ namespace Atode
                 double nowval = Math.Cos(MathHelper.ToRadians(startupdeg - STARTUP_DEGREE_STAY));
                 ratio = (int)(nowval * (double)INTEGRAL_RANGE / stayval);
                 // アイテムを描画
-                for (int no = 0; no < ITEM_NUM; no++)
+                for (no = 0; no < ITEM_NUM; no++)
                 {
                     apple[no].DrawStartup(g, UPPER_PADDING,ratio,INTEGRAL_RANGE);
                 }
@@ -306,12 +364,17 @@ namespace Atode
             else
             {
                 // アイテムを描画
-                for (int no = 0; no < ITEM_NUM; no++)
+                for (no = 0; no < ITEM_NUM; no++)
                 {
                     apple[no].Draw(g, UPPER_PADDING);
                 }
                 // 蛇を描画
                 hero.Draw(g, mapwidth(), mapheight(), UPPER_PADDING);
+                // 敵を描画
+                for (no = 0; no < enemynum; no++)
+                {
+                    enemy[no].Draw(g, mapwidth(), mapheight(), UPPER_PADDING);
+                }
             }
 
             // 上部ステータス行

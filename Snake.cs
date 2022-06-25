@@ -142,22 +142,22 @@ namespace Snake82
                 }
 
                 // 画面の上下端、左右端はループさせるため、端にいる場合は下側あるいは右側に寄せる
-                if (pos1.X <= 1 && (pos2.X <= 1 || mapwidth - 2 < pos2.X))
+                if (pos1.X == 0 || (pos1.X==1 && pos2.X ==0))
                 {
                     pos1.X += mapwidth;
                     mirrorX = true;
                 }
-                if (pos2.X <= 1 && (pos1.X <= 1 || mapwidth - 2 < pos1.X))
+                if (pos2.X == 0 || (pos2.X == 1 && mirrorX))
                 {
                     pos2.X += mapwidth;
                     mirrorX = true;
                 }
-                if (pos1.Y <= 1 && (pos2.Y <= 1 || mapheight - 2 < pos2.Y))
+                if (pos1.Y ==0 || (pos1.Y == 1 && pos2.Y==0))
                 {
                     pos1.Y += mapheight;
                     mirrorY = true;
                 }
-                if (pos2.Y <= 1 && (pos1.Y <= 1 || mapheight - 2 < pos1.Y))
+                if (pos2.Y ==0 ||(pos2.Y == 1 && mirrorY))
                 {
                     pos2.Y += mapheight;
                     mirrorY = true;
@@ -222,6 +222,40 @@ namespace Snake82
                 }
 
             }
+        }
+
+        // 静止した世界でも次のマスまでは進める
+        public bool UpdateStopWorld(Game1 g, int[,] map)
+        {   // ゲームの進行
+            bool rc = false;
+
+            switch (mode)
+            {
+                case (int)SnakeMode.Active:
+                    // 前に進む
+                    posratio += speed;
+                    if (INTEGRAL_RANGE <= posratio)
+                    {
+                        posratio = INTEGRAL_RANGE;
+                    }
+                    // 頭を回す
+                    if (dirratio < INTEGRAL_RANGE)
+                    {
+                        dirratio += speed;
+                        if (INTEGRAL_RANGE <= dirratio)
+                        {
+                            dirratio = INTEGRAL_RANGE;
+                            dirlast = direction;
+                        }
+                    }
+                    // 無敵モード
+                    if (0 < rainbowcowntdown)
+                    {
+                        rainbowcowntdown--;
+                    }
+                    break;
+            }
+            return rc;
         }
 
         // 頭が一マス進んだらtrueを返す

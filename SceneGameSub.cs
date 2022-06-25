@@ -28,45 +28,8 @@ namespace Atode
                 p.X = g.rand.Next(mapwidth() - 2) + 1;
                 p.Y = g.rand.Next(mapheight() - 2) + 1;
 
-                otherscore = 0;
                 // 周囲の存在密度を点数化
-                for (int yc = p.Y - 2; yc <= p.Y + 2; yc++)
-                {
-                    int y = yc;
-                    if (y < 0)
-                    {
-                        y += mapheight();
-                    }
-                    else if (mapheight() <= y)
-                    {
-                        y -= mapheight();
-                    }
-                    for (int xc = p.X - 2; xc <= p.X + 2; xc++)
-                    {
-                        int x = xc;
-                        if (x < 0)
-                        {
-                            x += mapwidth();
-                        }
-                        else if (mapwidth() <= x)
-                        {
-                            x -= mapwidth();
-                        }
-                        if (map[x, y] != (int)Chip.None)
-                        {
-                            int distance = Math.Abs(yc - p.Y) + Math.Abs(xc - p.X);
-                            if (0 < distance)
-                            {
-                                otherscore += 100 / distance;
-                            }
-                            else
-                            {
-                                otherscore += 10000000;
-                            }
-                        }
-                    }
-                }
-                // 周囲の存在密度集計完了
+                otherscore = ScoreMap(p);
                 if (othertop > otherscore)
                 {
                     othertop = otherscore;

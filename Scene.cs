@@ -121,5 +121,51 @@ namespace Atode
         {   // マップ配列作成
             map = new int[x,y];
         }
+
+        // 周囲の存在密度を点数化する
+        // 指定地点の近くに何かが存在するほど点数が高い
+        protected int ScoreMap(Point p)
+        {
+            int score = 0;
+            // 周囲5x5マスをすべてサーチ
+            for (int yc = p.Y - 2; yc <= p.Y + 2; yc++)
+            {
+                int y = yc;
+                if (y < 0)
+                {
+                    y += mapheight();
+                }
+                else if (mapheight() <= y)
+                {
+                    y -= mapheight();
+                }
+                for (int xc = p.X - 2; xc <= p.X + 2; xc++)
+                {
+                    int x = xc;
+                    if (x < 0)
+                    {
+                        x += mapwidth();
+                    }
+                    else if (mapwidth() <= x)
+                    {
+                        x -= mapwidth();
+                    }
+                    if (map[x, y] != (int)Chip.None)
+                    {
+                        int distance = Math.Abs(yc - p.Y) + Math.Abs(xc - p.X);
+                        if (0 < distance)
+                        {   // 中心点から遠いほど、その地点のスコアは低い
+                            score += 100 / distance;
+                        }
+                        else
+                        {   // その場所にすでに何かが存在する場合、周囲5x5全てに存在する場合のスコアを、を1地点だけで上回るスコアを付与
+                            score += 100 * 5 * 5;
+                        }
+                    }
+                }
+            }
+
+            return score;
+        }
     }
 }

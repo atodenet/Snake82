@@ -16,6 +16,7 @@ namespace Atode
         Screensize,
         Pause,
         Back,
+        LB,
         Endmark
     }
     public class Input
@@ -178,6 +179,16 @@ namespace Atode
                 {
                     pressed[(int)Key.B] = 1;
                     lasttime[(int)Key.B] = iCounter;
+                }
+            }
+
+            if (kb.IsKeyDown(Keys.LeftShift) || kb.IsKeyDown(Keys.RightShift) ||
+                (pad.IsConnected && (pad.Buttons.LeftShoulder == ButtonState.Pressed)))
+            {   // SHiftキー = LBボタン
+                if (lasttime[(int)Key.LB] + REACTION_GAME < iCounter)
+                {
+                    pressed[(int)Key.LB] = 1;
+                    lasttime[(int)Key.LB] = iCounter;
                 }
             }
         }

@@ -86,6 +86,7 @@ namespace Snake82
             {   // 頭が敵に衝突した
                 if( 0< rainbowcowntdown)
                 {   // 無敵モード 敵を倒す
+                    Grow(map.GetLength(1));
                     rc = 2;
                 }
                 else

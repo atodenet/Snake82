@@ -25,25 +25,30 @@ namespace Snake82
             speed = 40;
         }
 
-        // 頭が一マス進んだらtrueを返す
-        public new bool Update(Game1 g, int[,] map)
+        // return 0:通常 1:アイテムを食べた
+        public int Update(Game1 g, int[,] map,bool eatitem)
         {
-            bool rc;
+            int rc = 0;
+            // 頭が一マス進んだらtrueを返す
+            bool stepahead = base.Update(g, map);
 
-            rc = base.Update(g, map);
-
-            if (rc)
+            if (stepahead)
             {
-                if (g.rand.Next(3) < 2)
-                {
-                    if (length < 10000)
+                if (eatitem)
+                {   // アイテム捕食中
+                    int hitchip = GetHit(map);
+                    if (hitchip == (int)Chip.Item)
                     {
-                        AddBody();
-                    }
-                    if(length % 10 == 0)
-                    {
+                        rc = 1;
+                        if (length < 10000)
+                        {
+                            AddBody();
+                        }
                         SetRainbow();
                     }
+                }
+                else
+                {   // アイテム捕食中でなければランダムで方向転換
                     if (lastdirection == -1)
                     {   // 2連続方向転換は見栄えが悪いので防ぐ, 前回方向転換しなかった場合のみ
                         lastdirection = SetDirection(g.rand.Next(4));
@@ -52,6 +57,7 @@ namespace Snake82
                     {
                         lastdirection = -1;
                     }
+
                 }
             }
             return rc;

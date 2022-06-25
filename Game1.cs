@@ -12,6 +12,8 @@ namespace Snake82
         private const string _titleName = "Test2";
         private const int CEL_WIDTH_START = 18;       // 横キャラクター数の初期値
         private const int CEL_HEIGHT_START = 10;      // 縦キャラクター数の初期値
+        private const int PAUSE_INVISIVLE_TIME = 120;   // PAUSE表示を消す期間
+        private int _pauseinvisible;
 
         public GraphicsDeviceManager graphics;
         public SpriteBatch spriteBatch;
@@ -25,9 +27,8 @@ namespace Snake82
         private Viewport _viewedge;
         private BasicEffect effect;
         private VertexPositionColor[] vertexpFullscreen;
-        //       private short[] idxrect;
-        //       private VertexBuffer vertexBuffer;
 
+        // シーン関係
         private int _scheneNo = (int)Scn.None;
         private SceneBoot _sceneboot;
         private SceneTitle _scenetitle;
@@ -132,8 +133,11 @@ namespace Snake82
                 // システム系操作完了
 
                 if ( inp.bPause == false)
-                {
+                {   // シーンに関係なく、ポーズ中でない場合のみゲームは進行する。
                     UpdateScene(this);
+                }
+                if(inp.Get((int)Key.LB) == true){
+                    _pauseinvisible = PAUSE_INVISIVLE_TIME;
                 }
             }
             // シーンの切り替えが発生したのであればシーン切り替え
@@ -165,18 +169,25 @@ namespace Snake82
             // ポーズ中表示
             if( inp.bPause)
             {
-                spriteBatch.Begin(samplerState: SamplerState.PointClamp);
-                // 文字の位置
-                int cx = celwidth() / 2 - 3;
-                int cy = celheight() / 2;
-                // 背景の黒箱描画
-                Rectangle rect;
-                rect = scr.TextBox(cx-1, cy);
-                rect.Width += scr.TextWidth(6, cx-1);
-                Primitive.FillRectangle(spriteBatch, rect, Color.MidnightBlue);
-                // 文字表示
-                DrawString("PAUSE", cx, cy, Color.White);
-                spriteBatch.End();
+                if( 0 < _pauseinvisible)
+                {
+                    _pauseinvisible--;
+                }
+                else
+                {
+                    spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+                    // 文字の位置
+                    int cx = celwidth() / 2 - 3;
+                    int cy = celheight() / 2;
+                    // 背景の黒箱描画
+                    Rectangle rect;
+                    rect = scr.TextBox(cx - 1, cy);
+                    rect.Width += scr.TextWidth(6, cx - 1);
+                    Primitive.FillRectangle(spriteBatch, rect, Color.MidnightBlue);
+                    // 文字表示
+                    DrawString("PAUSE", cx, cy, Color.White);
+                    spriteBatch.End();
+                }
             }
 
             // フルスクリーン時、余白を黒で塗りつぶす
