@@ -4,7 +4,7 @@ using System.Diagnostics;
 
 namespace Atode
 {
-    public class SaveData
+    public class RecordData
     {   // セーブデータ管理クラス
         private const string COMPANY = "atode.net";
         private String filename = "noname.dat";
@@ -13,8 +13,9 @@ namespace Atode
         private const int DATAVERSION = 1;
         public int width = 0;
         public int height = 0;
+        public bool fullscreen = false;
         
-        public SaveData(String title)
+        public RecordData(String title)
         {
             filename = title;
         }
@@ -35,7 +36,7 @@ namespace Atode
             name += ".dat";
             return name;
         }
-        public int Save(int width, int height)
+        public int Save(int width, int height,bool fullscreen)
         {
             String folder = GetFolder();
 
@@ -60,6 +61,7 @@ namespace Atode
                         writer.Write((Int32)DATAVERSION);
                         writer.Write((Int32)width);
                         writer.Write((Int32)height);
+                        writer.Write(fullscreen?1:0);
                     }
                 }
             }
@@ -85,6 +87,15 @@ namespace Atode
                         { 
                             width = reader.ReadInt32();
                             height = reader.ReadInt32();
+                            Int32 flag = reader.ReadInt32();
+                            if (flag == 1)
+                            {
+                                fullscreen = true;
+                            }
+                            else
+                            {
+                                fullscreen = false;
+                            }
                         }
                     }
                 }

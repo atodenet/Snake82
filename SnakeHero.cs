@@ -1,4 +1,5 @@
-﻿using Microsoft.Xna.Framework;
+﻿using Atode;
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Diagnostics;
@@ -8,48 +9,40 @@ namespace Snake82
 {
     class SnakeHero : Snake
     {
-        private int growstep;   // 成長から成長までに何マス進んだか
-        private int growturn;   // 成長から成長までに何回曲がったか
-        public SnakeHero()
+        public SnakeHero(int mapobjectno):base(mapobjectno)
         {
             headcolor = Color.White;
             bodycolor = Color.AliceBlue;
         }
-        public new void Init(int startx, int starty)
+        public new void Init(Point startPos)
         {
-            base.Init(startx, starty);
+            base.Init(startPos);
             // 基底クラスで設定した値を上書き
             direction = 0; dirlast = 0; // 上向き
             dirratio = INTEGRAL_RANGE;
-            growstep = 0;
-            growturn = 0;
         }
-        public new bool Update(Game1 g, int[,] map)
+
+        // 頭が次のマスへ進んだらtrueを返す
+        public new bool Update(Game1 g, CollisionMap map)
         {
-            bool moved = base.Update(g, map);
-            if (moved)
-            {
-                growstep++;
-                if(direction != dirlast)
-                {
-                    growturn++;
-                }
-            }
-            return moved;
+            bool newMoved = base.Update(g, map);
+            return newMoved;
         }
+
         // 蛇が死んだあと普通は待機だが、自機は死体描画モードになる
         protected override void SetAfterDeath()
         {
-            mode = (int)SnakeMode.Corpse;   // 自機は死んでも消えない、死体を表示する
+            modenow = SnakeMode.Corpse;   // 自機は死んでも消えない、死体を表示する
         }
 
 
         // 成長する 敵を倒したり、アイテムを獲得したり
-        private void Grow(int height)
+        public void Grow(int height)
         {
             AddBody();
             SetRainbow();
-            // スピードアップ
+
+            // スピードアップ判定
             int spup = 0;   // 1;   // デフォルト値
             if (growstep <= height) // 移動距離が高さ未満なら1up
             {
@@ -63,39 +56,81 @@ namespace Snake82
             }
             Debug.WriteLine("Speedup "+spup);
             SpeedUp(spup);      // スピードアップ完了
+
+            // スピードアップ判定用パラメータ初期化
             growstep = 0;       // 移動距離カウンタ
             growturn = 0;       // 方向転換回数カウンタ
         }
 
         // 頭の衝突判定と衝突時処理
-        // return: 0変化なし 1 アイテムを取った 2 敵を倒した
-        public int CheckHit(int[,] map)
+        // return: 衝突したオブジェクト
+        public MapObject CheckHit(CollisionMap map)
         {
-            int rc = 0;
-            int hitchip = GetHit(map);
-            if (hitchip == (int)Chip.Item)
-            {
-                Grow(map.GetLength(1));
-                rc = 1;
+            MapObject mo = GetHit(map);
+
+            if (mo.chip == MapChip.Item)
+            {   // アイテムを取った
+                Grow(map.mapheight());
             }
-            else if (hitchip == (int)Chip.Snake)
+            else if (mo.chip == MapChip.SnakeBody || mo.chip == MapChip.RainbowBody)
             {   // 頭が自分の体に衝突した
-                SetDeath();
+                SetDeath(true);
             }
-            else if (hitchip == (int)Chip.Enemy)
+            else if (mo.chip == MapChip.EnemyHead || mo.chip == MapChip.EnemyBody)
             {   // 頭が敵に衝突した
-                if( 0< rainbowcowntdown)
+                if ( IsRainbow() )
                 {   // 無敵モード 敵を倒す
-                    Grow(map.GetLength(1));
-                    rc = 2;
+                    Grow(map.mapheight());
                 }
                 else
                 {
-                    SetDeath();
+                    SetDeath(true);
+                    // 衝突したオブジェクトは返さない
+                    // 呼び出し元では衝突後の処理（敵を殺す）をしないため
+                    mo = map.GetNone();
                 }
             }
-            return rc;
+            else if(mo.chip != MapChip.None&& mo.chip != MapChip.SnakeHead&& mo.chip != MapChip.RainbowHead)
+            {
+            //    throw new SystemException();
+            }
+            return mo;
         }
+
+        // ゲームマップに自身をプロットする（画面描画ではない）
+        // 基底クラスSnakeのPlotは使わない
+        public new void Plot(CollisionMap map)
+        {
+            // 死んだ蛇はmapに置かない
+            if (modenow == SnakeMode.Active)
+            {
+                int headobj;
+                int bodyobj;
+                int bodyno = headno;
+                Point pos = body[bodyno--];
+
+                if ( IsRainbow() )
+                {   // 無敵モード
+                    headobj = objno + 2;
+                    bodyobj = objno + 3;
+                }
+                else
+                {   // 通常時
+                    headobj = objno;
+                    bodyobj = objno+1;
+                }
+
+                // 最初に頭をプロット（体で上書きするため）
+                map.Plot( headobj,pos);
+
+                for (int i = 1; i < length; i++)
+                {   // 体をプロット （i=0は頭）
+                    pos = body[bodyno--];
+                    map.Plot(bodyobj,pos);
+                }
+            }
+        }
+
         public void DrawStartup(Game1 g, int mapwidth, int mapheight, int uppadding, int ratio1, int range)
         {
             Color color = headcolor;

@@ -6,14 +6,6 @@ using System.Diagnostics;
 
 namespace Snake82
 {
-    enum Chip
-    {   // ゲームマップ上の記号値
-        None = 0,
-        Snake,
-        SnakeHead,
-        Enemy,
-        Item,
-    }
     enum SnakeMode
     {
         Active,
@@ -28,7 +20,8 @@ namespace Snake82
         protected const int INTEGRAL_RANGE = 1000;    // Speedを積み重ねてこのrangeに到達したら次のマスへ
         private const int BUF_ONCE = 100;
         private const int BUF_ONCE_ADD = 10;
-        private const int DEATH_TIME = 120;         // 体パーツが死ぬ間隔（フレーム数）
+        private const int DEATH_TIME = 120;         // 体パーツが死ぬアニメーション時間（フレーム数）
+        private const int DEATH_TIME_PIKA = 12;     // 死ぬ瞬間の感電表現時間
         private const int RAINBOW_BLINK = 50;        // レインボウモードの色変わり間隔（フレーム数） 3の倍数
         private const int RAINBOW_TIME = 60;        // レインボウモードの持続時間
 
@@ -42,34 +35,48 @@ namespace Snake82
         protected int dirlast;      // 今の頭の方向(0,1,2,3)
         protected int dirratio;     // 頭の方向の遷移率 0 - INTEGRAL_RANGE、INTEGRAL_RANGEに達したあとはrotだけで頭の向きは決まる
         protected int buflength;    // 体位置メモリバッファ長
-        protected Point[] body;  // 体のマップ上位置
+        protected Point[] body;     // 体のマップ上位置
         protected Color headcolor = Color.Black;
         protected Color bodycolor = Color.Black;
-        protected int chip = (int)Chip.Snake;
-        protected int chiphead = (int)Chip.SnakeHead;
-        public int mode;            // esnakemode
-        protected int deathcounddown;
+        protected int growstep;   // 成長から成長までに何マス進んだか
+        protected int growturn;   // 成長から成長までに何回曲がったか
+
+        protected int objno;        // ゲームマップ上に配置する番号
+        public SnakeMode modenow;            // esnakemode
+        protected int deathCounddown;
+        protected int deathPika;
         protected int deathspeed;
-        protected int rainbowcowntdown;
+        protected int rainbowCowntdown;
+        protected bool IsRainbow() { return 0 < rainbowCowntdown; }
+        protected bool IsDeathPika() { return 0 < deathPika; }
 
+        public Snake(int mapobjectno)
+        {
+            objno = mapobjectno;
+        }
 
-
-        public void Init(int startx, int starty)
+        public void Init(Point startPos)
         {
             buflength = BUF_ONCE;
             body = new Point[buflength + BUF_ONCE_ADD];
+            Reborn(startPos);
+        }
+        public void Reborn(Point startPos)
+        {
             length = 1;
             headno = 1;
             posratio = 0;
-            body[0].X = body[1].X = startx;
-            body[0].Y = body[1].Y = starty;
+            body[0] = body[1] = startPos;
             direction = 3; dirlast = 0;
             dirratio = 0;
             speed = 40;
-            rainbowcowntdown = 0;
-
-            mode = (int)SnakeMode.Active;
+            rainbowCowntdown = 0;
+            growstep = 0;
+            growturn = 0;
+            modenow = SnakeMode.Active;
         }
+
+
         private int DirectoryToRotation(int dir,int dirnext)
         {   // 角度を返す 0 90 180 270
             switch (dir)
@@ -100,8 +107,9 @@ namespace Snake82
             return MathHelper.ToRadians(-rot);
         }
 
+        // 蛇を画面に描画する
         public void Draw(Game1 g,int mapwidth,int mapheight,int uppadding)
-        {   // 蛇の描画
+        {   
             Rectangle rect;
             
             for (int no=length-1; 0<=no; no--)
@@ -113,11 +121,11 @@ namespace Snake82
                 Color color = (no == 0 ? headcolor : bodycolor);
 
                 // 色の設定
-                if ( 0< rainbowcowntdown)
+                if ( IsRainbow() )
                 {   // レインボウモード
-                    int red = 255 - (((rainbowcowntdown+no*RAINBOW_BLINK/10) % RAINBOW_BLINK) * 256 *2/ RAINBOW_BLINK);
-                    int green = 255 - (((rainbowcowntdown + no * RAINBOW_BLINK / 10 + RAINBOW_BLINK/3) % RAINBOW_BLINK) * 256*2 / RAINBOW_BLINK);
-                    int blue = 255 - (((rainbowcowntdown + no * RAINBOW_BLINK / 10 + RAINBOW_BLINK*2 / 3) % RAINBOW_BLINK) * 256*2 / RAINBOW_BLINK);
+                    int red = 255 - (((rainbowCowntdown+no*RAINBOW_BLINK/10) % RAINBOW_BLINK) * 256 *2/ RAINBOW_BLINK);
+                    int green = 255 - (((rainbowCowntdown + no * RAINBOW_BLINK / 10 + RAINBOW_BLINK/3) % RAINBOW_BLINK) * 256*2 / RAINBOW_BLINK);
+                    int blue = 255 - (((rainbowCowntdown + no * RAINBOW_BLINK / 10 + RAINBOW_BLINK*2 / 3) % RAINBOW_BLINK) * 256*2 / RAINBOW_BLINK);
                     if (red < 70)
                     {
                         red = 70;
@@ -132,12 +140,27 @@ namespace Snake82
                     }
                     color = new Color(red, green, blue);
                 }
-                if (mode == (int)SnakeMode.Death || mode == (int)SnakeMode.Corpse)
-                {   // 死んだら頭から黒くなる
-                    int deathno = length - (deathcounddown / deathspeed);
-                    if (no <= deathno)
+                if (modenow == SnakeMode.Death || modenow == SnakeMode.Corpse)
+                {   
+                    if( IsDeathPika() )
+                    {   // 感電中は体は黒い
+                        if(deathPika % 6 < 3)
+                        {
+                            color = Color.Black;
+                        }
+                        else
+                        {
+                            color = Color.Goldenrod;
+                        }
+                    }
+                    else
                     {
-                        color = Color.Black;
+                        // 死んだら頭から黒くなる
+                        int deathno = length - (deathCounddown / deathspeed);
+                        if (no <= deathno)
+                        {
+                            color = Color.Black;
+                        }
                     }
                 }
 
@@ -165,12 +188,37 @@ namespace Snake82
 
                 rect = g.scr.TextBoxBetween(pos1.X, pos1.Y + uppadding, pos2.X, pos2.Y + uppadding, posratio, INTEGRAL_RANGE);
 
+                if (IsDeathPika())
+                {   // 感電ビリビリの瞬間、背景は黄色
+                    Rectangle wall = rect;
+                    Primitive.FillRectangle(g.spriteBatch, wall, Color.Yellow);
+                    if (mirrorX)
+                    {
+                        wall = g.scr.TextBoxBetween(pos1.X - mapwidth, pos1.Y + uppadding,
+                                                    pos2.X - mapwidth, pos2.Y + uppadding, posratio, INTEGRAL_RANGE);
+                        Primitive.FillRectangle(g.spriteBatch, wall, Color.Yellow);
+                    }
+                    if (mirrorY)
+                    {
+                        wall = g.scr.TextBoxBetween(pos1.X, pos1.Y - mapheight + uppadding,
+                                                    pos2.X, pos2.Y - mapheight + uppadding, posratio, INTEGRAL_RANGE);
+                        Primitive.FillRectangle(g.spriteBatch, wall, Color.Yellow);
+                    }
+                    if (mirrorX && mirrorY)
+                    {
+                        wall = g.scr.TextBoxBetween(pos1.X - mapwidth, pos1.Y - mapheight + uppadding,
+                                                    pos2.X - mapwidth, pos2.Y - mapheight + uppadding, posratio, INTEGRAL_RANGE);
+                        Primitive.FillRectangle(g.spriteBatch, wall, Color.Yellow);
+                    }
+                }
+
                 if (no == 0)
                 {   // 先頭はhead描画 頭だけ方向がある
                     Vector2 sft = new Vector2(8f, 8f); // テクスチャ上の中心位置（画面上ではない）
                     rect.X += rect.Width / 2;
                     rect.Y += rect.Height / 2;
                     float rot = GetHeadRotation();
+
                     g.spriteBatch.Draw(g.fonts, rect, g.Font((char)4), color, rot, sft, SpriteEffects.None, 0f);
 
                     if (mirrorX)
@@ -225,15 +273,15 @@ namespace Snake82
         }
 
         // 静止した世界でも次のマスまでは進める
-        public bool UpdateStopWorld(Game1 g, int[,] map)
+        public bool UpdateStopWorld(Game1 g, CollisionMap map)
         {   // ゲームの進行
             bool rc = false;
 
-            switch (mode)
+            switch (modenow)
             {
-                case (int)SnakeMode.Active:
+                case SnakeMode.Active:
                     // 前に進む
-                    posratio += speed;
+                    posratio += Speed(g);
                     if (INTEGRAL_RANGE <= posratio)
                     {
                         posratio = INTEGRAL_RANGE;
@@ -241,7 +289,7 @@ namespace Snake82
                     // 頭を回す
                     if (dirratio < INTEGRAL_RANGE)
                     {
-                        dirratio += speed;
+                        dirratio += Speed(g);
                         if (INTEGRAL_RANGE <= dirratio)
                         {
                             dirratio = INTEGRAL_RANGE;
@@ -249,53 +297,66 @@ namespace Snake82
                         }
                     }
                     // 無敵モード
-                    if (0 < rainbowcowntdown)
+                    if (0 < rainbowCowntdown)
                     {
-                        rainbowcowntdown--;
+                        rainbowCowntdown--;
                     }
                     break;
             }
             return rc;
         }
 
-        // 頭が一マス進んだらtrueを返す
-        public bool Update(Game1 g,int[,] map)
+        // 頭が次のマスへ進んだらtrueを返す
+        public bool Update(Game1 g,CollisionMap map)
         {   // ゲームの進行
             bool rc = false;
 
-            switch(mode)
+            switch(modenow)
             {
-                case (int)SnakeMode.Active:
+                case SnakeMode.Active:
                     // 前に進む
-                    posratio += speed;
+                    posratio += Speed(g);
                     if (INTEGRAL_RANGE <= posratio)
-                    {
+                    {   // 次のマスへ進む
                         posratio = 0;
                         GoNext(g, map);
+                        // マスを進んだ場合、のちのちの難易度自動調整のために記録をつける
+                        growstep++; // 進んだ距離
+                        if (direction != dirlast)
+                        {   // 回頭中であれば
+                            growturn++; // 曲がった回数
+                        }
                         rc = true;
                     }
                     // 頭を回す
                     if (dirratio < INTEGRAL_RANGE)
                     {
-                        dirratio += speed;
+                        dirratio += Speed(g);
                         if (INTEGRAL_RANGE <= dirratio)
-                        {
+                        {   // 回頭終了
                             dirratio = INTEGRAL_RANGE;
                             dirlast = direction;
                         }
                     }
                     // 無敵モード
-                    if (0 < rainbowcowntdown)
+                    if (0 < rainbowCowntdown)
                     {
-                        rainbowcowntdown--;
+                        rainbowCowntdown--;
                     }
                     break;
-                case (int)SnakeMode.Death:
+                case SnakeMode.Death:
                     // 死んだアニメーション
-                    if( --deathcounddown <= -30)
-                    {   // マイナスは最後の余韻
-                        deathcounddown = 0;
-                        SetAfterDeath();
+                    if(0 < deathPika)
+                    {
+                        deathPika--;
+                    }
+                    else
+                    {
+                        if (--deathCounddown <= -30)
+                        {   // マイナスは最後の余韻
+                            deathCounddown = 0;
+                            SetAfterDeath();
+                        }
                     }
                     break;
             }
@@ -305,15 +366,12 @@ namespace Snake82
         // 死にアニメが終わった蛇は待機状態になる（何にも使われない）
         protected virtual void SetAfterDeath()
         {
-            mode = (int)SnakeMode.Standby;
+            modenow = SnakeMode.Standby;
         }
-        protected void GoNext(Game1 g, int[,] map)
+        protected void GoNext(Game1 g, CollisionMap map)
         {   // 次のマスへ移動する処理
-            int width = map.GetLength(0);
-            int height = map.GetLength(1);
-            int x;
-            int y;
 
+            // 体を伸ばす
             if (addbody)
             {   // 体を伸ばすのは、次のマスへ移動するときのみ
                 addbody = false;
@@ -329,7 +387,10 @@ namespace Snake82
                     body = newbody; // バッファの差し替え
                 }
             }
+
+            // 頭を次のマスへ移動する
             headno++;  // 頭のバッファ位置を１マス進める
+            // バッファサイズの管理
             if( buflength <= headno)
             {   // バッファ終点まで進んだので始点側へデータ移動
                 int moves = headno - length;
@@ -339,40 +400,44 @@ namespace Snake82
                 }
                 headno -= moves;
             }
-            // 頭のマップ位置を決める
-            x = body[headno - 1].X;
-            y = body[headno - 1].Y;
-            switch (direction)
+            // 移動後の頭のマップ位置をセット
+            body[headno] = GetNextPoint(map, body[headno - 1],direction);
+            // 今回のマス進行時の頭の方向を覚えておく（逆方向移動防止用、回転アニメーション用）
+            dirnow = direction; 
+            // map判定（衝突など）するならこの後
+        }
+
+        // 指定地点から、指定された方向に1マス進んだ地点を返す
+        public Point GetNextPoint(CollisionMap map,Point po,int direc)
+        {
+            switch (direc)
             {
                 case 0: // 上へ
-                    if( --y < 0)
+                    if (--po.Y < 0)
                     {
-                        y = height - 1;
+                        po.Y = map.mapheight() - 1;
                     }
                     break;
                 case 1: // 左へ
-                    if( --x < 0)
+                    if (--po.X < 0)
                     {
-                        x = width - 1;
+                        po.X = map.mapwidth() - 1;
                     }
                     break;
                 case 2: // 下へ
-                    if( height <= ++y)
+                    if (map.mapheight() <= ++po.Y)
                     {
-                        y = 0;
+                        po.Y = 0;
                     }
                     break;
                 case 3: // 右へ
-                    if( width <= ++x)
+                    if (map.mapwidth() <= ++po.X)
                     {
-                        x = 0;
+                        po.X = 0;
                     }
                     break;
             }
-            dirnow = direction; // 今回のマス進行時の頭の方向を覚えておく（逆方向移動防止用、回転アニメーション用）
-            body[headno].X = x;
-            body[headno].Y = y;
-            // map判定（衝突など）するならこの後
+            return po;
         }
         public void AddBody()
         {
@@ -419,60 +484,93 @@ namespace Snake82
         }
 
         // ゲームマップに自身をプロットする（画面描画ではない）
-        public void Plot(int[,] map)
+        // 注意！ 蛇のMapObjectは頭と体で２個連続で登録されていること。（LogicalMapに対して）
+        public void Plot(CollisionMap map)
         {
             // 死んだ蛇はmapに置かない
-            if (mode == (int)SnakeMode.Active)
-            {   
+            if (modenow == SnakeMode.Active)
+            {
+                int headobj;
+                int bodyobj;
                 int bodyno = headno;
                 Point pos = body[bodyno--];
+                Point lastpos;
+
+                headobj = objno;
+                bodyobj = objno + 1;    // LogicalMapに1蛇あたり2オブジェクト登録されていることが前提
 
                 // 最初に頭をプロット（体で上書きするため）
-                map[pos.X, pos.Y] = chiphead;
+                map.Plot(headobj, pos);
 
+                // 体をプロット （i=0は頭）
                 for (int i = 1; i < length; i++)
-                {   // 体をプロット （i=0は頭）
+                {
                     pos = body[bodyno--];
-                    map[pos.X, pos.Y] = chip;
+                    map.Plot(bodyobj, pos);
+                }
+                // 頭から最後端まではプロットし終わった。
+
+                // まだ次のマスへ十分移行していなければ、最後端のさらに一つ先をプロットする
+                // 見た目ではまだそこに蛇がいるから、当たり判定も必要
+                if(posratio*2 < INTEGRAL_RANGE)
+                {
+                    // 自機は、一番最初は0と1が同じ位置になっている。その時だけは頭を上書きしない。
+                    lastpos = body[bodyno];
+                    if (lastpos != pos)
+                    {
+                        map.Plot(bodyobj, lastpos);
+                    }
                 }
             }
         }
 
         // 頭の位置にあるchipを返す。EnemyやSnakeなら、頭が衝突している。
-        public int GetHit(int[,] map)
-        {   
-            return map[body[headno].X, body[headno].Y];
+        public MapObject GetHit(CollisionMap map)
+        {
+            return map.GetHit(body[headno]);
         }
-        public Point GetHead()
+        public Point GetHeadPoint()
         {
             return body[headno];
         }
 
         // 死んだ場合のステータス変更
-        public void SetDeath()
+        public void SetDeath(bool pika)
         {
-            mode = (int)SnakeMode.Death;
-            deathspeed = DEATH_TIME / length;
-            if (deathspeed > 8)
+            if(modenow != SnakeMode.Death)
             {
-                deathspeed = 8;
+                modenow = SnakeMode.Death;
+                deathspeed = DEATH_TIME / length;
+                if (deathspeed > 8)
+                {
+                    deathspeed = 8;
+                }
+                else if (deathspeed <= 0)
+                {
+                    deathspeed = 1;
+                }
+                deathCounddown = (length + 1) * deathspeed;
+
+                if (pika)
+                {
+                    deathPika = DEATH_TIME_PIKA;
+                }
             }
-            else if (deathspeed <= 0)
-            {
-                deathspeed = 1;
-            }
-            deathcounddown = (length+1) * deathspeed;
         }
 
         // レインボーモードにする
         public void SetRainbow()
         {
-            rainbowcowntdown = RAINBOW_TIME;
+            rainbowCowntdown = RAINBOW_TIME;
         }
         public int SpeedUp(int spd)
         {
             speed += spd;
             return speed;
+        }
+        protected int Speed(Game1 g)
+        {
+            return speed * g.speedRate / Game1.SPEED_DEFAULT;
         }
 
         // 画面（ゲームマップ）のサイズ拡張に対応して、体の位置を調節する

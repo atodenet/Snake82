@@ -17,32 +17,40 @@ namespace Snake82
         protected Point body;
         protected Point startup;
         protected int reborncount = 0;
-        protected int rebornwait;
+        protected int rebornWait;
         protected int fadein;
-        public int mode;
+        protected int objno;
+        public SnakeMode modenow;
+
+        public Item(int mapobjectno)
+        {
+            objno = mapobjectno;
+        }
 
         // アイテム初期配置
         public void Init(Point pos)
         {
-            mode = (int)SnakeMode.Active;
+            modenow = SnakeMode.Active;
             body = pos;
             reborncount = 0;
-            rebornwait = 0;
+            rebornWait = 0;
             fadein = INTEGRAL_RANGE;
         }
 
         // アイテムは食われたら死亡ステータスへ変更
         public void SetDeath()
         {
-            mode = (int)SnakeMode.Death;
+            modenow = SnakeMode.Death;
             reborncount++;
-            rebornwait = reborncount * REBORN_TIME;
+            // アイテムが復活するまでの時間は、死んだ回数に比例する
+            // 死ねば死ぬほど復活が遅くなる
+            rebornWait = reborncount * REBORN_TIME; 
         }
 
         // 食われて死んでいたアイテムを復活させる
         public void Reborn(Point pos)
         {
-            mode = (int)SnakeMode.Active;
+            modenow = SnakeMode.Active;
             body = pos;
             fadein = 0;
         }
@@ -52,27 +60,19 @@ namespace Snake82
         {
             startup = pos;
         }
-        public void Plot(int[,] map)
+        public void Plot(CollisionMap map)
         {
             // 死んだらmapに置かない
-            if (mode == (int)SnakeMode.Active)
+            if (modenow == SnakeMode.Active)
             {
-                map[body.X, body.Y] = (int)Chip.Item;
+                map.Plot(objno, body);
             }
-        }
-        public bool CheckHit(Point p)
-        {
-            if (body.X == p.X && body.Y == p.Y)
-            {
-                return true;
-            }
-            return false;
         }
 
         // 画面描画 通常用
         public void Draw(Game1 g,int uppadding)
         {
-            if (mode == (int)SnakeMode.Active)
+            if (modenow == SnakeMode.Active)
             {
                 Color color = Color.Red;
                 if (fadein < INTEGRAL_RANGE)
@@ -87,7 +87,7 @@ namespace Snake82
         // 画面描画 スタートアップアニメーション専用
         public void DrawStartup(Game1 g, int uppadding,int ratio1,int range)
         {
-            if (mode == (int)SnakeMode.Active)
+            if (modenow == SnakeMode.Active)
             {
                 Color color = Color.Red;
                 if (fadein < INTEGRAL_RANGE)
@@ -101,12 +101,12 @@ namespace Snake82
         }
 
         // ゲーム進行処理
-        // deathからactiveに変わるときにtrueを返すので、呼び出し元はRebornを実行すること。
+        // return: false=通常 true=deathからactiveに変わるときにtrueを返すので、呼び出し元はRebornを実行すること。
         public bool Update()
         {
-            if( 0<rebornwait)
+            if( 0<rebornWait)
             {
-                if( --rebornwait == 0)
+                if( --rebornWait == 0)
                 {
                     return true;
                 }

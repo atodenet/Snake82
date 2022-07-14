@@ -10,25 +10,31 @@ namespace Atode
         Boot,
         Title,
         Game,
+        Quit,
     }
 
     class Scene
     {   // シーンの基底クラス。ここからゲーム画面やタイトル画面を派生する。
         protected const int INTEGRAL_RANGE = 1000;
+        protected const int KEY_RELEASE_WAIT = 30;  // キーが離されるまで待つフレーム数(ボタンを押すと次へ進んでしまうケースで、1プッシュで連続して判定されるのを防ぐ）
         protected int upcounter = 0;    // ゲームにとって時間を表す
-        protected int nextScene = 0;    // 次のシーンを指定（自分自身ではシーンを切り替えることができないから呼び出し元に指示する）
+        protected Scn nextScene = 0;    // 次のシーンを指定（自分自身ではシーンを切り替えることができないから呼び出し元に指示する）
+        // 地面描画用変数
+        public bool collisionVisible = false;       // コリジョン可視化フラグ
+        protected int GROUND_WAVE_SPEED = 100;
 
-        public int[,] map;              // ゲームロジック用の全体マップ 表示用ではない 描画には使わない
-        public int mapwidth() { return map.GetLength(0); }
-        public int mapheight() { return map.GetLength(1); }
+        public CollisionMap map;                    // ゲームロジック用の全体マップ 表示用ではない 描画には使わない
+        public int mapwidth() { return map.mapwidth(); }
+        public int mapheight() { return map.mapheight(); }
 
         public void Init()
         {
             upcounter = 0;
-            
-            nextScene = (int)Scn.None;
+            groundWaveVisible = false;
+
+            nextScene = Scn.None;
         }
-        public int Next()
+        public Scn Next()
         {
             return nextScene;
         }
@@ -36,19 +42,28 @@ namespace Atode
         {
             // ゲームのメインロジック
             upcounter++;
+            // 地面の波
+            if(groundWaveVisible)
+            {
+                groundWave += GROUND_WAVE_SPEED;
+            }
         }
         public void Draw(Game1 game)
         {
             // フレーム描画
         }
+
+        // 地面を描画
         protected void DrawGround(Game1 g,int ystart)
-        {   // 地面を描画
+        {
+            int x;
+            int y;
             Rectangle grnd;
             Color col0;
             Color col1;
             Color col0a;
             Color col1a;
-            for (int y = ystart; y <= g.celheight(); y++)
+            for (y = ystart; y <= g.celheight(); y++)
             {
                 // 地面のマス目の色
                 if (y % 2 == 0)
@@ -73,11 +88,11 @@ namespace Atode
                 {   // 画面サイズ内部分
                     int tx;
                     int ty = g.celheight() - y - 1; ;
-                    for (int x = 0; x < g.celwidth(); x++)
-                    {   // テキスト画面は原点が画面下部中央
+                    for (x = 0; x < g.celwidth(); x++)
+                    {
                         grnd = g.scr.TextBox(x, y);
                         tx = x - g.scr.celxshift(); // スタート時画面でのテキスト座標に換算
-                        Primitive.FillRectangle(g.spriteBatch, grnd, (tx % 2 == 0 ? col0 : col1));
+                        Primitive.FillRectangle(g.spriteBatch, WaveSize(grnd, x, y), (tx % 2 == 0 ? col0 : col1));
                     }
                     if (0 < g.scr.celnextratio())
                     {   // 画面サイズ遷移中は左右を描画
@@ -91,11 +106,32 @@ namespace Atode
                 }
                 else if(0 < g.scr.celnextratio())
                 {   // 画面サイズ遷移中は最下段のさらに下を描画する
-                    for (int x = -1; x <= g.celwidth(); x++)
+                    for (x = -1; x <= g.celwidth(); x++)
                     {   // テキスト画面は原点が画面下部中央
                         int tx = x - g.scr.celxshift();
                         grnd = g.scr.TextBox(x, g.celheight());
                         Primitive.FillRectangle(g.spriteBatch, grnd, (tx % 2 == 0 ? col0a : col1a));
+                    }
+                }
+            }
+
+            if( collisionVisible)
+            {   // LogicMapを表示
+                for (y = 0; y < mapheight(); y++)
+                {
+                    for(x=0; x < mapwidth(); x++)
+                    {
+                        int objno = map.map[x, y];
+                        if(0 < objno)
+                        {
+                            col0 = Color.MidnightBlue;
+                            if (1 <= objno && objno <= 4)
+                            {
+                                col0 = Color.Red;
+                            }
+                            grnd = g.scr.TextBox(x, y + ystart);
+                            Primitive.FillRectangle(g.spriteBatch, grnd, col0);
+                        }
                     }
                 }
 
@@ -106,66 +142,69 @@ namespace Atode
         { // 画面の背景色を返す
             return Color.MediumBlue;
         }
-        protected void ClearMap()
-        {   // マップ初期化
-            for (int y = 0; y < map.GetLength(1); y++)
-            {
-                for (int x = 0; x < map.GetLength(0); x++)
-                {
-                    map[x, y] = 0;
-                }
 
-            }
-        }
-        protected void AllocMap(int x, int y)
-        {   // マップ配列作成
-            map = new int[x,y];
-        }
+        // 地面波描画
+        protected bool groundWaveVisible;           // 地面の波打ち有効化フラグ
+        protected int groundWave;                   // 地面波位置
+        protected int grountWavePeriod;             // 地面波期間
+        protected int groundWaveWidth;              // 地面波の幅（片側）
 
-        // 周囲の存在密度を点数化する
-        // 指定地点の近くに何かが存在するほど点数が高い
-        protected int ScoreMap(Point p)
+        // 地面波開始
+        protected void StartGrountWave()
         {
-            int score = 0;
-            // 周囲5x5マスをすべてサーチ
-            for (int yc = p.Y - 2; yc <= p.Y + 2; yc++)
+            grountWavePeriod = (mapwidth() + mapheight()) * INTEGRAL_RANGE * 3/ 4;
+            groundWaveWidth = (mapwidth() + mapheight()) * INTEGRAL_RANGE / 6;
+            groundWave = 0;
+            groundWaveVisible = true;
+        }
+        // 地面波を反映して地面ボックスサイズを変更
+        protected Rectangle WaveSize(Rectangle rect,int x,int y)
+        {
+            if (!groundWaveVisible)
             {
-                int y = yc;
-                if (y < 0)
-                {
-                    y += mapheight();
-                }
-                else if (mapheight() <= y)
-                {
-                    y -= mapheight();
-                }
-                for (int xc = p.X - 2; xc <= p.X + 2; xc++)
-                {
-                    int x = xc;
-                    if (x < 0)
-                    {
-                        x += mapwidth();
-                    }
-                    else if (mapwidth() <= x)
-                    {
-                        x -= mapwidth();
-                    }
-                    if (map[x, y] != (int)Chip.None)
-                    {
-                        int distance = Math.Abs(yc - p.Y) + Math.Abs(xc - p.X);
-                        if (0 < distance)
-                        {   // 中心点から遠いほど、その地点のスコアは低い
-                            score += 100 / distance;
-                        }
-                        else
-                        {   // その場所にすでに何かが存在する場合、周囲5x5全てに存在する場合のスコアを、を1地点だけで上回るスコアを付与
-                            score += 100 * 5 * 5;
-                        }
-                    }
-                }
+                return rect;
             }
+            int pos;
+            // 左上ではなく右下から波が始まるよう逆にする
+            x = mapwidth() - 1 - x;
+            y = mapheight() - 1 - y;
+            pos = (x + y) * INTEGRAL_RANGE;
 
-            return score;
+            // 波の頂点位置は二つ
+            int peakcenter = groundWave % grountWavePeriod;
+            int peak1 = peakcenter - grountWavePeriod / 2;
+            int peak2 = peakcenter + grountWavePeriod / 2;
+
+            // 波の頂点からの距離 画面内には波が二つある。 近い方を採用する。
+            int len1 = Math.Abs(peak1 - pos);
+            int len2 = Math.Abs(peak2 - pos);
+            int len;
+            if(groundWave <= grountWavePeriod)
+            {
+                // 始まったばかりの時は、これからやってくる方のみ表示
+                len = len1;
+            }
+            else
+            {
+                // 近い方の波を採用
+                len = Math.Min(len1, len2);
+            }
+            // 波の幅より外側は対象外
+            if ( len < groundWaveWidth)
+            {
+                // 波の高さは二次曲線とする（とんがった一次曲線の波は不自然）
+                float ratio = ((float)len * (float)len) / ((float)groundWaveWidth * (float)groundWaveWidth);
+                // 頂点=0とはしない。頂点でもある程度資格を残す。
+                ratio = ratio * 0.6f + 0.4f;
+                int w = (int)((float)rect.Width * ratio);
+                int h = (int)((float)rect.Height * ratio);
+
+                rect.X += (rect.Width - w) / 2;
+                rect.Y += (rect.Height - h) / 2;
+                rect.Width = w;
+                rect.Height = h;
+            }
+            return rect;
         }
     }
 }

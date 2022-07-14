@@ -29,7 +29,7 @@ namespace Atode
                 p.Y = g.rand.Next(mapheight() - 2) + 1;
 
                 // 周囲の存在密度を点数化
-                otherscore = ScoreMap(p);
+                otherscore = map.ScoreMap(p,false);
                 if (othertop > otherscore)
                 {
                     othertop = otherscore;

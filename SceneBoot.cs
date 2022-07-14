@@ -108,13 +108,13 @@ namespace Atode
             // ゲームのメインロジック
             if (game.inp.AnyKey())
             {
-                nextScene = (int)Scn.Title;
+                nextScene = Scn.Title;
             }
 #if DEBUGoff
             if (game.inp.Get((int)Key.A))
             {
                 degreestart = true;
-                nextScene = (int)Scn.None;
+                nextScene = Scn.None;
             }
 #endif
             if ( 0 < degree && degreestart)
@@ -133,7 +133,7 @@ namespace Atode
                 degree = 0;
                 if( --blackcount <= 0)
                 {
-                    nextScene = (int)Scn.Title;
+                    nextScene = Scn.Title;
                 }
             }
 

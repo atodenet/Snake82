@@ -1,4 +1,5 @@
-﻿using Microsoft.Xna.Framework;
+﻿using Atode;
+using Microsoft.Xna.Framework;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -12,32 +13,26 @@ namespace Snake82
     {
         private int lastdirection = 0;
 
-        public SnakeDemo()
+        public SnakeDemo(int mapobjectno):base(mapobjectno)
         {
             headcolor = Color.White;
             bodycolor = Color.AliceBlue;
 
         }
-        public new void Init(int startx, int starty)
-        {
-            base.Init(startx, starty);
-            // 基底クラスで設定した値を上書き
-            speed = 40;
-        }
 
         // return 0:通常 1:アイテムを食べた
-        public int Update(Game1 g, int[,] map,bool eatitem)
+        public int Update(Game1 g, CollisionMap map,bool eatItemMode)
         {
             int rc = 0;
             // 頭が一マス進んだらtrueを返す
-            bool stepahead = base.Update(g, map);
+            bool newMoved = base.Update(g, map);
 
-            if (stepahead)
+            if (newMoved)
             {
-                if (eatitem)
+                if (eatItemMode)
                 {   // アイテム捕食中
-                    int hitchip = GetHit(map);
-                    if (hitchip == (int)Chip.Item)
+                    MapObject mo = GetHit(map);
+                    if (mo.chip == MapChip.Item)
                     {
                         rc = 1;
                         if (length < 10000)

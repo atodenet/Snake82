@@ -17,13 +17,16 @@ namespace Atode
         Pause,
         Back,
         LB,
+        Pup,
         Endmark
     }
     public class Input
     {
-        private const int REACTION_HARDWARE = 60;    // ハードウェア系操作の連打判定防止クールタイム
-        private const int REACTION_SYSTEM = 40;    // システム系操作の連打判定防止クールタイム
-        private const int REACTION_GAME = 10;       // ゲーム操作入力の連打判定防止クールタイム
+        private const int REACTION_HARDWARE = 60;       // ハードウェア系操作の連打判定防止クールタイム
+        private const int REACTION_SYSTEM = 40;         // システム系操作の連打判定防止クールタイム
+        private const int REACTION_GAME_FAST = 10;      // ゲーム本番中の連打判定防止クールタイム
+        private const int REACTION_GAME_SLOW = 20;      // ゲーム外メニュー画面等の連打判定防止クールタイム
+        private int reactionGame = REACTION_GAME_SLOW;  // ゲーム操作入力の連打判定防止クールタイム
         private int iCounter = 0;
         public bool bFullscreen = false;
         public bool bScreensize = false;
@@ -53,11 +56,25 @@ namespace Atode
                 pressed[(int)Key.Left] == 1 ||
                 pressed[(int)Key.Right] == 1 ||
                 pressed[(int)Key.A] == 1 ||
-                pressed[(int)Key.B] == 1)
+                pressed[(int)Key.B] == 1 ||
+                pressed[(int)Key.LB] == 1)
             {
                 return true;
             }
             return false;
+        }
+
+        // ゲーム中は高速連打が可能とする
+        public void SetReactionFast(bool fast)
+        {
+            if (fast)
+            {
+                reactionGame = REACTION_GAME_FAST;
+            }
+            else
+            {
+                reactionGame = REACTION_GAME_SLOW;
+            }
         }
         public void Update(bool isFullScreen)
         {
@@ -125,7 +142,7 @@ namespace Atode
             if (kb.IsKeyDown(Keys.W) || kb.IsKeyDown(Keys.Up) ||
                 (pad.IsConnected && (pad.DPad.Up == ButtonState.Pressed)))
             {   // 上 = W
-                if (lasttime[(int)Key.Up] + REACTION_GAME < iCounter)
+                if (lasttime[(int)Key.Up] + reactionGame < iCounter)
                 {
                     pressed[(int)Key.Up] = 1;
                     lasttime[(int)Key.Up] = iCounter;
@@ -135,7 +152,7 @@ namespace Atode
             if (kb.IsKeyDown(Keys.S) || kb.IsKeyDown(Keys.Down) ||
                 (pad.IsConnected && (pad.DPad.Down == ButtonState.Pressed)))
             {   // 下 = S
-                if (lasttime[(int)Key.Down] + REACTION_GAME < iCounter)
+                if (lasttime[(int)Key.Down] + reactionGame < iCounter)
                 {
                     pressed[(int)Key.Down] = 1;
                     lasttime[(int)Key.Down] = iCounter;
@@ -145,7 +162,7 @@ namespace Atode
             if (kb.IsKeyDown(Keys.A) || kb.IsKeyDown(Keys.Left) ||
                 (pad.IsConnected && (pad.DPad.Left == ButtonState.Pressed)))
             {   // 左 = A
-                if (lasttime[(int)Key.Left] + REACTION_GAME < iCounter)
+                if (lasttime[(int)Key.Left] + reactionGame < iCounter)
                 {
                     pressed[(int)Key.Left] = 1;
                     lasttime[(int)Key.Left] = iCounter;
@@ -155,7 +172,7 @@ namespace Atode
             if (kb.IsKeyDown(Keys.D) || kb.IsKeyDown(Keys.Right) ||
                 (pad.IsConnected && (pad.DPad.Right == ButtonState.Pressed)))
             {   // 右 = D
-                if (lasttime[(int)Key.Right] + REACTION_GAME < iCounter)
+                if (lasttime[(int)Key.Right] + reactionGame < iCounter)
                 {
                     pressed[(int)Key.Right] = 1;
                     lasttime[(int)Key.Right] = iCounter;
@@ -165,7 +182,7 @@ namespace Atode
             if (kb.IsKeyDown(Keys.Z) || kb.IsKeyDown(Keys.Enter) ||
                 (pad.IsConnected && (pad.Buttons.A == ButtonState.Pressed)))
             {   // Aボタン = Z = Enter
-                if (lasttime[(int)Key.A] + REACTION_GAME < iCounter)
+                if (lasttime[(int)Key.A] + reactionGame < iCounter)
                 {
                     pressed[(int)Key.A] = 1;
                     lasttime[(int)Key.A] = iCounter;
@@ -175,7 +192,7 @@ namespace Atode
             if (kb.IsKeyDown(Keys.X) || kb.IsKeyDown(Keys.Space) ||
                 (pad.IsConnected && (pad.Buttons.B == ButtonState.Pressed)))
             {   // Bボタン = X = Space
-                if (lasttime[(int)Key.B] + REACTION_GAME < iCounter)
+                if (lasttime[(int)Key.B] + reactionGame < iCounter)
                 {
                     pressed[(int)Key.B] = 1;
                     lasttime[(int)Key.B] = iCounter;
@@ -184,11 +201,20 @@ namespace Atode
 
             if (kb.IsKeyDown(Keys.LeftShift) || kb.IsKeyDown(Keys.RightShift) ||
                 (pad.IsConnected && (pad.Buttons.LeftShoulder == ButtonState.Pressed)))
-            {   // SHiftキー = LBボタン
-                if (lasttime[(int)Key.LB] + REACTION_GAME < iCounter)
+            {   // LBボタン = SHiftキー
+                if (lasttime[(int)Key.LB] + reactionGame < iCounter)
                 {
                     pressed[(int)Key.LB] = 1;
                     lasttime[(int)Key.LB] = iCounter;
+                }
+            }
+
+            if (kb.IsKeyDown(Keys.PageUp))
+            {   // Pupキー
+                if (lasttime[(int)Key.Pup] + reactionGame < iCounter)
+                {
+                    pressed[(int)Key.Pup] = 1;
+                    lasttime[(int)Key.Pup] = iCounter;
                 }
             }
         }

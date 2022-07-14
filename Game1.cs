@@ -9,17 +9,20 @@ namespace Snake82
 {
     public class Game1 : Game
     {
-        private const string _titleName = "Test2";
+        private const string _titleName = "snake82";
         private const int CEL_WIDTH_START = 18;       // 横キャラクター数の初期値
         private const int CEL_HEIGHT_START = 10;      // 縦キャラクター数の初期値
         private const int PAUSE_INVISIVLE_TIME = 120;   // PAUSE表示を消す期間
         private int _pauseinvisible;
+        private int _pauselogo;
+        public const int SPEED_DEFAULT = 10;        // ゲームのスピード標準値
+        public int speedRate = SPEED_DEFAULT;       // ゲームのスピード
 
         public GraphicsDeviceManager graphics;
         public SpriteBatch spriteBatch;
         public Input inp;
-        public Screen scr;
-        public SaveData save;
+        public Vga scr;     // Screen情報（ゲーム画面の解像度、キャラクタ画面の情報）
+        public RecordData rec;
         public Texture2D fonts = null;
         public Texture2D txgameover = null;
         public Random rand;
@@ -28,8 +31,15 @@ namespace Snake82
         private BasicEffect effect;
         private VertexPositionColor[] vertexpFullscreen;
 
+        // オートパイロット関係
+        public bool autopilotVisible = true;//false;       // ユーザーにこの機能を公開するか
+        public bool autopilotEnable = true;//false;        // ユーザーによるオートパイロットのON/OFF
+        private int autopilotChallenge = 0;         // 公開するために必要な条件の連続回数
+        private const int AUTOPILOT_OPEN = 5;       // この連続回数以上になれば機能公開
+        private const int AUTOPILOT_SIZE = 39;      // stage10以下で死ぬ
+
         // シーン関係
-        private int _scheneNo = (int)Scn.None;
+        private Scn _scheneNo = Scn.None;
         private SceneBoot _sceneboot;
         private SceneTitle _scenetitle;
         private SceneGame _scenegame;
@@ -38,7 +48,7 @@ namespace Snake82
         private DeleUpdate UpdateScene;
         delegate void DeleDraw(Game1 game);
         private DeleDraw DrawScene;
-        delegate int DeleNext();
+        delegate Scn DeleNext();
         private DeleNext NextScene;
         delegate Color DeleBackColor();
         private DeleBackColor BackColor;
@@ -59,13 +69,13 @@ namespace Snake82
 
             rand = new Random();
             inp = new Input();
-            scr = new Screen();
-            save = new SaveData(_titleName);
+            scr = new Vga();
+            rec = new RecordData(_titleName);
 
             _sceneboot = new SceneBoot();
             _scenetitle = new SceneTitle();
             _scenegame = new SceneGame();
-            SetScene((int)Scn.Boot);
+            SetScene(Scn.Boot);
 
             Window.AllowUserResizing = true;
             // _scrインスタンス生成後にイベントハンドラーを登録する ユーザーによるウィンドウサイズ変更
@@ -86,10 +96,10 @@ namespace Snake82
             // TODO: Add your initialization logic here
             
             // セーブデータをロードする Screen初期化より前に
-            save.Load();
-            Debug.WriteLine("SaveData " + save.width + " x " + save.height);
+            rec.Load();
+            Debug.WriteLine("SaveData " + rec.width + " x " + rec.height);
             // Screen初期化 （ウィンドウサイズを指定）
-            scr.Init(this,save.width,save.height);
+            scr.Init(this, rec.width, rec.height, rec.fullscreen);
 
             base.Initialize();
         }
@@ -113,11 +123,20 @@ namespace Snake82
                 // ユーザー操作をここで入力
                 inp.Update(graphics.IsFullScreen);
 
-                if (inp.Get((int)Key.Back) && 
-                    (_scheneNo == (int)Scn.Title || _scheneNo == (int)Scn.Boot))
-                {   // タイトル画面でBackボタンを押されたらプログラム終了
-                    OnExit();
-                    Exit();
+                if (inp.Get((int)Key.Back))
+                {
+                    if(_scheneNo == Scn.Title || _scheneNo == Scn.Boot)
+                    {   // タイトル画面でBackボタンを押されたらプログラム終了
+                        SetScene(Scn.Quit);
+                    }
+                    if (_scheneNo == Scn.Game)
+                    {  // Backボタンでゲーム終了、タイトルへ（どのフェーズでも）
+                        SetScene( Scn.Title);
+                        if (inp.bPause == true)
+                        {   // ポーズ中だとUpdateをしないから画面が切り替わらない。ここでUpdate
+                            UpdateScene(this);
+                        }
+                    }
                 }
                 if (inp.bFullscreen)
                 {   // 全画面化
@@ -136,10 +155,31 @@ namespace Snake82
                 {   // シーンに関係なく、ポーズ中でない場合のみゲームは進行する。
                     UpdateScene(this);
                 }
+
                 if(inp.Get((int)Key.LB) == true){
-                    _pauseinvisible = PAUSE_INVISIVLE_TIME;
+                    if (_pauselogo == 0)
+                    {
+                        _pauselogo = PAUSE_INVISIVLE_TIME;
+                        _pauseinvisible = 0;
+                    }
+                    else if ( _pauseinvisible == 0)
+                    {
+                        _pauseinvisible = PAUSE_INVISIVLE_TIME;
+                        _pauselogo = 0;
+                    }
+                }
+
+                // 時間カウンタ
+                if (0 < _pauselogo)
+                {
+                    _pauselogo--;
+                }
+                if (0 < _pauseinvisible)
+                {
+                    _pauseinvisible--;
                 }
             }
+
             // シーンの切り替えが発生したのであればシーン切り替え
             SetScene(NextScene());
 
@@ -167,25 +207,38 @@ namespace Snake82
             DrawScene(this);
 
             // ポーズ中表示
-            if( inp.bPause)
+            if( inp.bPause )
             {
                 if( 0 < _pauseinvisible)
                 {
-                    _pauseinvisible--;
+                    // 何も描画しない;
                 }
-                else
-                {
+                else if (0 < _pauselogo)
+                {   // ポーズ中のゲーム名オーバーレイ
+                    const String promoLogo = "Snake82";
                     spriteBatch.Begin(samplerState: SamplerState.PointClamp);
                     // 文字の位置
-                    int cx = celwidth() / 2 - 3;
+                    int logoScale = celwidth() / promoLogo.Length;
+                    int cx = celwidth() / 2 - promoLogo.Length * logoScale/2;
+                    int cy = celheight() / 2 - logoScale/2;
+                    float alpha = 0.7f; // 透明度
+                    // 文字表示
+                    DrawString(promoLogo, cx, cy, Color.HotPink*alpha,logoScale);
+                    spriteBatch.End();
+                }
+                else
+                {   // 通常のポーズ中表示
+                    const String pauseLogo = " PAUSE ";
+                    spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+                    // 文字の位置
+                    int cx = celwidth() / 2 - pauseLogo.Length/2;
                     int cy = celheight() / 2;
                     // 背景の黒箱描画
                     Rectangle rect;
-                    rect = scr.TextBox(cx - 1, cy);
-                    rect.Width += scr.TextWidth(6, cx - 1);
+                    rect = scr.TextBox(cx, cy, pauseLogo.Length, 1);
                     Primitive.FillRectangle(spriteBatch, rect, Color.MidnightBlue);
                     // 文字表示
-                    DrawString("PAUSE", cx, cy, Color.White);
+                    DrawString(pauseLogo, cx, cy, Color.White);
                     spriteBatch.End();
                 }
             }
@@ -195,24 +248,25 @@ namespace Snake82
             base.Draw(gameTime);
         }
 
-        private void SetScene(int sceneNo)
+        private void SetScene(Scn sceneNo)
         {   // ゲームシーンの切り替え タイトル画面、ゲーム画面、config画面、ランキング画面等
             switch (sceneNo)
             {
-                case (int)Scn.None:
+                case Scn.None:
                     // 何もしない（デフォルト）
                     return;
-                case (int)Scn.Game:
+                case Scn.Game:
                     // ゲームへ
                     UpdateScene = _scenegame.Update;
                     DrawScene = _scenegame.Draw;
                     NextScene = _scenegame.Next;
                     BackColor = _scenegame.BackColor;
+                    inp.SetReactionFast(true);
                     scr.CelInit(CEL_WIDTH_START,CEL_HEIGHT_START);
                     _scenegame.Init(this);
                     Debug.WriteLine("Scene Game");
                     break;
-                case (int)Scn.Boot:
+                case Scn.Boot:
                     // 起動画面
                     UpdateScene = _sceneboot.Update;
                     DrawScene = _sceneboot.Draw;
@@ -222,13 +276,19 @@ namespace Snake82
                     _sceneboot.Init(this);
                     Debug.WriteLine("Scene Boot");
                     break;
-                case (int)Scn.Title:
+                case Scn.Quit:
+                    // プログラムを終了させる
+                    OnExit();
+                    Exit();
+                    break;
+                case Scn.Title:
                 default:
                     // タイトル画面へ
                     UpdateScene = _scenetitle.Update;
                     DrawScene = _scenetitle.Draw;
                     NextScene = _scenetitle.Next;
                     BackColor = _scenetitle.BackColor;
+                    inp.SetReactionFast(false);
                     scr.CelInit(CEL_WIDTH_START, CEL_HEIGHT_START);
                     _scenetitle.Init(this);
                     Debug.WriteLine("Scene Title");
@@ -240,7 +300,7 @@ namespace Snake82
         private void OnExit()
         { // プログラム終了時の処理
             // ゲームデータのセーブ
-            save.Save(scr.windowwidth(), scr.windowheight());
+            rec.Save(scr.windowwidth(), scr.windowheight(), graphics.IsFullScreen);
         }
 
         private void ClearEdge()
@@ -301,24 +361,41 @@ namespace Snake82
             return area;
         }
 
-        public void DrawString(String str, int x, int y, Color color, int xoffset, int yoffset)
+        // 文字のフォントサイズの何ドット分かずらして文字列描画 文字の影や縁取りの表現に使う
+        public void DrawStringOffset(String str, int x, int y, Color color, int xoffset, int yoffset)
         {
             char code;
             Rectangle rect;
             
             for(int i=0; i<str.Length; i++)
             {
-                rect = scr.TextBox(x+i, y,xoffset, yoffset);
+                rect = scr.TextBoxOffset(x+i, y,xoffset, yoffset);
                 code = str[i];
                 spriteBatch.Draw(fonts, rect, Font(code), color);
 
             }
         }
 
-        public void DrawString(String str, int x, int y, Color color)
+        // 文字列描画 文字サイズ倍率指定あり
+        // scaleは文字の大きさ倍率
+        public void DrawString(String str, int x, int y, Color color,int scale)
         {
-            DrawString(str, x, y, color, 0, 0);
+            char code;
+            Rectangle rect;
+
+            for (int i = 0; i < str.Length; i++)
+            {
+                rect = scr.TextBox(x + i*scale, y,scale,scale);
+                code = str[i];
+                spriteBatch.Draw(fonts, rect, Font(code), color);
+            }
         }
 
+        // 標準の文字サイズで文字列描画
+        public void DrawString(String str, int x, int y, Color color)
+        {
+            DrawString(str, x, y, color, 1);
         }
+
     }
+}

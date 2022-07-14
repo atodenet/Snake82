@@ -6,7 +6,7 @@ using System.Diagnostics;
 
 namespace Atode
 {
-    enum Phase
+    enum PlayPhase
     {   // ゲームのフェーズはスタートアップアニメーション＞ゲーム＞ゲームオーバーアニメーション＞ランキングの順に進む
         None = 0,
         Startup,
@@ -24,16 +24,21 @@ namespace Atode
         protected const int ENEMY_MAX = 1000;
         private SnakeEnemy[] enemy;
         private int enemynum;
+        protected const int MAPOBJECT_HEROTOP = 1;                              // 先頭ITEMオブジェクト番号 1は先頭NULLオブジェクト
+        protected const int MAPOBJECT_HEROPATTERN = 4;                          // Heroのオブジェクトバターンは通常頭 通常体 虹頭 虹体 の4つ
+        protected const int MAPOBJECT_ITEMTOP = MAPOBJECT_HEROTOP + MAPOBJECT_HEROPATTERN;
+        protected const int MAPOBJECT_ENEMYTOP = MAPOBJECT_ITEMTOP + ITEM_NUM;  // 先頭ENEMYオブジェクト番号
+        protected const int MAPOBJECT_MAX = MAPOBJECT_ENEMYTOP + ENEMY_MAX*2;     // オブジェクトの最大数
 
         private const int CEL_CHANGE_RATE = 3;      // キャラクター画面拡大スピード
         private int celchangerate;                  // キャラクター画面拡大中はスピードを示す 普段は0
         private int cellastxshift;                  // キャラクター画面が左側に拡大された量 これが変わると全てのオブジェクトのmap座標がずれる
         private int herolastlength;
-        private int initialmapheight;
-        private int GetStage() { return mapheight() - initialmapheight + 1; }
+        private int initialMapheight;
+        private int GetStage() { return mapheight() - initialMapheight + 1; }
 
         // ゲーム中のフェーズ管理
-        private int gamephase;
+        private PlayPhase phasenow;
         // startup animation phase
         private const int STARTUP_SPEED = 2;
         private const int STARTUP_DEGREE_STAY = 15;                     // スタートアップアニメーションの余韻
@@ -47,35 +52,46 @@ namespace Atode
         private int gameoverzoom;
         private Color[] gameoverpixel;
 
+        // Ranking phase
+        private int rankingCounter;
+
 
 
         public SceneGame()
         {
-            hero = new SnakeHero();
-            apple = new Item[ITEM_NUM];
+            map = new CollisionMap(MAPOBJECT_MAX);
 
+            hero = new SnakeHero(MAPOBJECT_HEROTOP);
+            map.SetObject(MAPOBJECT_HEROTOP, MapChip.SnakeHead, 0);
+            map.SetObject(MAPOBJECT_HEROTOP+1, MapChip.SnakeBody, 0);
+            map.SetObject(MAPOBJECT_HEROTOP+2, MapChip.RainbowHead, 0);
+            map.SetObject(MAPOBJECT_HEROTOP+3, MapChip.RainbowBody, 0);
+
+            apple = new Item[ITEM_NUM];
             for (int no = 0; no < ITEM_NUM; no++)
             {
-                apple[no] = new Item();
+                apple[no] = new Item(MAPOBJECT_ITEMTOP + no);
+                map.SetObject(MAPOBJECT_ITEMTOP + no, MapChip.Item, no);
             }
         }
 
         public void Init(Game1 g)
         {
             // 始まりのフェーズを指定
-            gamephase = (int)Phase.Startup;
+            phasenow = PlayPhase.Startup;
             startupdeg = STARTUP_DEGREE;
 
+            // ゲームマップ関係変数初期化
             // ゲームマップは画面サイズより狭い 画面の上１行はステータス行
             // 右端と左端、上端と下端はミラー行なので、２行で１行なので-1
-            AllocMap(g.celwidth() - 1, g.celheight() - 1 - UPPER_PADDING);
-            initialmapheight = mapheight();
+            map.AllocMap(g.celwidth() - 1, g.celheight() - 1 - UPPER_PADDING);
+            initialMapheight = mapheight();
 
             celchangerate = 0;      // キャラクター画面拡大中のみ正数
             cellastxshift = 0;      // キャラクター画面サイズは初期値
 
             // 自機を初期化、位置を指定
-            hero.Init(g.celwidth()/2,g.celheight()/2);
+            hero.Init(new Point(g.celwidth()/2,g.celheight()/2));
             herolastlength = hero.length;   // 画面拡大のキー情報
 
             // 敵を初期化
@@ -94,6 +110,8 @@ namespace Atode
                 gameoverpixel = new Color[g.txgameover.Width * g.txgameover.Height];
                 g.txgameover.GetData<Color>(gameoverpixel);
             }
+            // ランキング表示用
+            rankingCounter = 0;
 
             base.Init();
         }
@@ -104,11 +122,7 @@ namespace Atode
 
             //--------------------------------------------------------------------------------
             // ユーザーによる操作
-            if (g.inp.Get((int)Key.Back))
-            {  // Backボタンでゲーム終了、タイトルへ
-                nextScene = (int)Scn.Title;
-            }
-
+            // 戻るボタン処理はここではなくGame1で（ポーズ中も有効にするため）
             if (g.inp.Get((int)Key.Up))
             {
                 hero.SetDirection(0);
@@ -127,9 +141,25 @@ namespace Atode
             }
             if (g.inp.Get((int)Key.A))
             {   // スキップボタン
-                if(gamephase == (int)Phase.Gameover)
+                if(phasenow == PlayPhase.Gameover)
                 {   // ゲームオーバーアニメーションをスキップ
                     gameoverpos = -GAMEOVER_STAY * INTEGRAL_RANGE;
+                }
+            }
+            if (g.inp.Get((int)Key.Pup))
+            {
+                collisionVisible = !collisionVisible;
+            }
+
+            if (phasenow == PlayPhase.Ranking)
+            {
+                if (KEY_RELEASE_WAIT < rankingCounter)
+                {   // ランキング表示を終了してタイトル画面へ戻る
+                    if (g.inp.AnyKey())
+                    {
+                        // 何かキーが押されたら
+                        nextScene = Scn.Title;
+                    }
                 }
             }
 
@@ -141,7 +171,7 @@ namespace Atode
                 {   // キャラクター画面サイズ変更が完了した時の、画面拡大処理
                     celchangerate = 0;
                     // ゲームマップを広げる
-                    AllocMap(g.celwidth() - 1, g.celheight() - 1 - UPPER_PADDING);
+                    map.AllocMap(g.celwidth() - 1, g.celheight() - 1 - UPPER_PADDING);
                     // 画面左端が拡張されたかどうか
                     int expandleft = g.scr.celxshift() - cellastxshift;
                     if (0 < expandleft)
@@ -149,8 +179,13 @@ namespace Atode
                         cellastxshift = g.scr.celxshift();
                     }
                     // 蛇は画面が拡大したら必ず体を再配置する。右端下端をまたぐケースに対応するため。
-                    hero.ExpandMap(expandleft);     // 自機
-                    // 敵
+                    // 自機
+                    hero.ExpandMap(expandleft);
+                    // 敵を画面拡大にあわせて再配置
+                    for (no = 0; no < enemynum; no++)
+                    {
+                        enemy[no].ExpandMap(expandleft);
+                    }
 
                     // アイテムの再配置は、マップが左側に拡張された場合のみ
                     if (0<expandleft)
@@ -161,12 +196,23 @@ namespace Atode
                         }
 
                     }
+                    // 画面が拡大すると敵も生まれる
+                    if (enemynum < ENEMY_MAX)
+                    {
+                        Point pos = SearchMapSpace(g);
+                        SnakeEnemy newenemy = new SnakeEnemy(MAPOBJECT_ENEMYTOP + enemynum * 2);
+                        newenemy.Init(pos);
+                        enemy[enemynum] = newenemy;
+                        map.SetObject(MAPOBJECT_ENEMYTOP + enemynum * 2, MapChip.EnemyHead, enemynum);
+                        map.SetObject(MAPOBJECT_ENEMYTOP + enemynum * 2 + 1, MapChip.EnemyBody, enemynum);
+                        enemynum++;
+                    }
                 }
             }
 
             //--------------------------------------------------------------------------------
-            // マップ描画
-            ClearMap();
+            // コリジョンマップ描画
+            map.ClearMap();
             for (no = 0; no < ITEM_NUM; no++)
             {
                 apple[no].Plot(map);
@@ -179,40 +225,35 @@ namespace Atode
 
             //--------------------------------------------------------------------------------
             // 各オブジェクトのUpdate
-            if ( gamephase != (int)Phase.Startup)
-            {   // startupの最中に自機が動いてしまうと動きがバグる
+
+            // startupの最中は何も動かしてはダメ。自機が動いてしまうと動きがバグる
+            if ( phasenow != PlayPhase.Startup)
+            {   
                 // 自機を動かす
                 hero.Update(g, map);
                 // プレイフェーズ中のみ自機ヒット判定
-                if(gamephase == (int)Phase.Play)
+                if(phasenow == PlayPhase.Play)
                 {
-                    Point headpos;
-                    int rc = hero.CheckHit(map);
-                    switch (rc)
+                    MapObject mo = hero.CheckHit(map);
+                    switch (mo.chip)
                     {
-                        case 1:
+                        case MapChip.Item:
                             // アイテムを取った
-                            headpos = hero.GetHead();
-                            // どのアイテムか探す
-                            for (no = 0; no < ITEM_NUM; no++)
-                            {
-                                if (apple[no].CheckHit(headpos))
-                                {   // このアイテムが取られたので、アイテムを消す
-                                    apple[no].SetDeath();
-                                    break;
-                                }
-                            }
+                            // 取られたアイテムを除去
+                            apple[mo.Localno].SetDeath();
                             break;
-                        case 2:
+                        case MapChip.EnemyHead:
+                        case MapChip.EnemyBody:
                             // 敵を倒した
-                            headpos = hero.GetHead();
-                            // どの敵か探す
+                            // 倒された敵を殺す
+                            enemy[mo.Localno].SetDeath(true);
                             break;
                     }
-
                 }
+
+                // 敵とアイテムを動かす
                 // デスアニメ中は静止した世界
-                if (gamephase == (int)Phase.Death)
+                if (phasenow == PlayPhase.Death)
                 {   // 敵は限定的に動く
                     for (no = 0; no < enemynum; no++)
                     {
@@ -224,9 +265,15 @@ namespace Atode
                     // 敵を動かす
                     for (no = 0; no < enemynum; no++)
                     {
-                        enemy[no].Update(g, map);
+                        if(enemy[no].Update(g, map) == 1)
+                        {
+                            enemy[no].Reborn(SearchMapSpace(g));
+                        }
+                        if(enemy[no].CheckHit(map) == 1)
+                        {
+                            hero.Grow(mapheight());
+                        }
                     }
-
 
                     // アイテムを動かす
                     for (no = 0; no < ITEM_NUM; no++)
@@ -241,41 +288,46 @@ namespace Atode
 
             //--------------------------------------------------------------------------------
             // 各フェーズ処理
-            switch (gamephase)
+            switch (phasenow)
             {
-                case (int)Phase.Play:
+                case PlayPhase.Play:
                     // ゲームプレイ中、自機が死んだらデスアニメモードへ遷移
-                    if (hero.mode == (int)SnakeMode.Death)
+                    if (hero.modenow == SnakeMode.Death)
                     {
-                        gamephase = (int)Phase.Death;
+                        phasenow = PlayPhase.Death;
                     }
                     break;
-                case (int)Phase.Death:
+                case PlayPhase.Death:
                     // デスアニメ中、自機が死体になったらゲームオーバーへ
-                    if (hero.mode == (int)SnakeMode.Corpse)
+                    if (hero.modenow == SnakeMode.Corpse)
                     {
                         // ゲームオーバーアニメーションのフェーズへ遷移
-                        gamephase = (int)Phase.Gameover;
+                        phasenow = PlayPhase.Gameover;
                         gameoverzoom = (g.celheight() - UPPER_PADDING) / g.txgameover.Height;   // 1以上、boardの表示倍率
                         gameoverzoom = Math.Max(gameoverzoom, 1);
                         // X方向移動距離（CEL単位、1CEL移動=INTEGRAL_RANGE）右に隠れてスタート、左に隠れきるまでの距離 最後の+は余韻
                         gameoverpos = (g.celwidth() + g.txgameover.Width * gameoverzoom) * INTEGRAL_RANGE;
                     }
                     break;
-                case (int)Phase.Gameover:
+                case PlayPhase.Gameover:
                     // ゲームオーバーアニメーション処理
                     gameoverpos -= GAMEOVER_SPEED * gameoverzoom;
                     if (gameoverpos <= -GAMEOVER_STAY * INTEGRAL_RANGE)
-                    {   // アニメーション完了なので次のシーンへ
-                        nextScene = (int)Scn.Title;
+                    {   // アニメーション完了なのでランキングフェーズへ
+                        phasenow = PlayPhase.Ranking;
+                        StartGrountWave();
                     }
                     break;
-                case (int)Phase.Startup:
+                case PlayPhase.Ranking:
+                    // ランキング表示
+                    rankingCounter++;
+                    break;
+                case PlayPhase.Startup:
                     startupdeg -= STARTUP_SPEED;
                     if (startupdeg <= 0)
                     {
                         startupdeg = 0;
-                        gamephase = (int)Phase.Play;    // ゲームプレイ開始
+                        phasenow = PlayPhase.Play;    // ゲームプレイ開始
                     }
                     break;
             }
@@ -291,19 +343,12 @@ namespace Atode
                 {
                     g.scr.CelResizeNext(g.celheight() + 1, CEL_CHANGE_RATE);
                     celchangerate = CEL_CHANGE_RATE;
-                    // 画面が拡大すると敵も生まれる
-                    if(enemynum < ENEMY_MAX)
-                    {
-                        Point pos = SearchMapSpace(g);
-                        SnakeEnemy en = new SnakeEnemy();
-                        en.Init(pos.X, pos.Y);
-                        enemy[enemynum++] = en;
-                    }
                 }
             }
             base.Update(g);
         }
 
+        // ゲームオーバー時の背景アニメーション表示
         private void DrawGameover(Game1 g)
         {
             // GAMEOVERの一枚絵をboardと呼ぶ
@@ -333,6 +378,33 @@ namespace Atode
                 }
             }
         }
+
+        // ランキング画面を表示
+        private void DrawRanking(Game1 g)
+        {
+            int xleft;
+            int y = UPPER_PADDING;
+            bool mini;
+            String title;
+            const String titleLong = "Rank   Date    Size  Stage";
+            const String titleMini = "Rank   Date    Size";
+
+            if (g.celwidth() < titleLong.Length)
+            {
+                mini = true;
+                title = titleMini;
+            }
+            else
+            {
+                mini = false;
+                title = titleLong;
+            }
+            xleft = (g.celwidth() - title.Length) / 2;
+            g.DrawString(title, xleft, y++, Color.Honeydew);
+
+        }
+
+        // ゲーム画面描画
         public new void Draw(Game1 g)
         {
             int no;
@@ -342,12 +414,12 @@ namespace Atode
 
             // フィールド描画
             base.DrawGround(g,1);
-            if (gamephase == (int)Phase.Gameover)
+            if (phasenow == PlayPhase.Gameover)
             {
                 DrawGameover(g);
             }
 
-            if(gamephase == (int)Phase.Startup)
+            if(phasenow == PlayPhase.Startup)
             {
                 int ratio;
                 double stayval = Math.Cos(MathHelper.ToRadians(STARTUP_DEGREE_STAY));   // 最後にstartupdegが0になった時のcos値
@@ -379,10 +451,11 @@ namespace Atode
 
             // 上部ステータス行
             Rectangle starea;
-            starea = g.scr.TextBox(0, 0);
-            starea.Width += g.scr.TextWidth(g.celwidth() - 1, 1);
+            starea = g.scr.TextBox(0, 0, g.celwidth(), 1);
+            //starea.Width += g.scr.TextWidth(g.celwidth() - 1, 1);
             Primitive.FillRectangle(g.spriteBatch, starea, Color.Honeydew);
-            // 体の長さ
+            // 体の長さを表示
+            // 中央から左側に表示 -4は"Size"
             int xpos = (g.celwidth() - 1) / 2 - hero.length.ToString().Length - 4;
             if( xpos < 1)
             {
@@ -390,16 +463,21 @@ namespace Atode
             }
             g.DrawString("Size", xpos, 0, Color.LightBlue);
             g.DrawString(hero.length.ToString(), xpos+4, 0, Color.MidnightBlue);
-            // ステージ表示
+            // ステージ番号表示
             int stage = GetStage();
             if(1 < stage)
-            {
+            {   // 中央の右側に表示
                 xpos = (g.celwidth() - 1) / 2 + 1;
                 g.DrawString("Stage", xpos, 0, Color.LightBlue);
                 g.DrawString(stage.ToString(), xpos + 5, 0, Color.MidnightBlue);
             }
 
-            g.spriteBatch.End();
+            if (phasenow == PlayPhase.Ranking)
+            {   // ランキング表示
+                DrawRanking(g);
+            }
+
+                g.spriteBatch.End();
 
             base.Draw(g);
         }

@@ -6,12 +6,14 @@ using System.Diagnostics;
 
 namespace Atode
 {
-    public class Screen
+    public class Vga
     {   // 画面やウィンドウ、キャラクター画面管理用のクラス
-        enum Scrmode
+        // クラス名は Screenだったが、頭ScがSceneと被るので変更
+        public enum VgaType
         {   // 画面サイズがFullHDとHDの二種類しかなかった頃の残骸。今はフルスクリーン時の画面サイズ変更用に残っている
-            mid = 1,
-            small
+            None = 0,
+            fullHD,
+            HD,
         }
         private const int CEL_SIZE_DEF = 32;        // キャラクターの仮想サイズ（フルHD時一辺ドット数）
         private const int CEL_WIDTH_DEF = 60;       // 横キャラクター数の初期値
@@ -24,7 +26,7 @@ namespace Atode
         private const int SMALL_HEIGHT = 693;       // 21*33 original 720
         private const int SMALL_WIDTH_FULL = 1280;  // HD物理画面サイズ
         private const int SMALL_HEIGHT_FULL = 720;  // 
-        public int screenmode = (int)Scrmode.mid;
+        public VgaType vgamode = VgaType.fullHD;
         private Viewport _viewport;
         public int edgeWidth = 0;       // ゲーム画面領域より画面サイズが大きい場合に余る幅
         public int edgeHeight = 0;      // ゲーム画面領域より画面サイズが大きい場合に余る高さ
@@ -47,11 +49,11 @@ namespace Atode
         public int celxshift() { return _celXShift; }
 
 
-        public Screen()
+        public Vga()
         {
         }
 
-        public void Init(Game1 game,int width, int height)
+        public void Init(Game1 game,int width, int height,bool fullscreen)
         {
             if( width == 0)
             {
@@ -75,7 +77,7 @@ namespace Atode
             // FullHD未満の環境ではHD解像度に切り替え
             if (GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Width <= game.graphics.PreferredBackBufferWidth)
             {
-                screenmode = (int)Scrmode.small;
+                vgamode = VgaType.HD;
                 game.graphics.PreferredBackBufferWidth = SMALL_WIDTH;
                 game.graphics.PreferredBackBufferHeight = SMALL_HEIGHT;
             }
@@ -84,6 +86,15 @@ namespace Atode
             // 現在のウィンドウサイズ
             _windowWidth = game.graphics.PreferredBackBufferWidth;
             _windowHeight = game.graphics.PreferredBackBufferHeight;
+
+            // 最初からフルスクリーン指定
+            if (fullscreen)
+            {
+                if (game.graphics.IsFullScreen == false)
+                {
+                    ToggleFull(game);
+                }
+            }
         }
 
         // Full screen mode <> Window mode switcher
@@ -158,20 +169,21 @@ namespace Atode
             }
         }
 
+        // 画面サイズをフルHD、HDに切り替える
         public void ToggleSize(Game1 game)
         {
-            if (game.graphics.IsFullScreen)
-            {   // 全画面
-                if (screenmode == (int)Scrmode.mid)
+            //if (game.graphics.IsFullScreen)   // ウィンドウモードでも使える
+            {
+                if (vgamode == VgaType.fullHD)
                 {
-                    screenmode = (int)Scrmode.small;
+                    vgamode = VgaType.HD;
                     Debug.WriteLine("to Small ScreenSize(Full)");
                     game.graphics.PreferredBackBufferWidth = SMALL_WIDTH_FULL;
                     game.graphics.PreferredBackBufferHeight = SMALL_HEIGHT_FULL;
                 }
                 else
                 {
-                    screenmode = (int)Scrmode.mid;
+                    vgamode = VgaType.fullHD;
                     Debug.WriteLine("to Default ScreenSize(Full)");
                     game.graphics.PreferredBackBufferWidth = MID_WIDTH_FULL;
                     game.graphics.PreferredBackBufferHeight = MID_HEIGHT_FULL;
@@ -207,21 +219,21 @@ namespace Atode
         // テキスト画面座標からビュー画面描画座標に変換する
         // 左上を(0,0)原点に変更 （テキスト画面は左右中央がX=0列、画面最下行がY=0行 上方向へ+Y）
         // 先に SetViewport()が必要
-        public Rectangle TextBox(int cx, int cy)
+        public Rectangle TextBox(int cx, int cy,int sizex,int sizey)
         {   
             Rectangle box;
 
             int x1 = cx * _viewport.Width / celwidth();
-            int x2 = (cx+1)  * _viewport.Width / celwidth();
+            int x2 = (cx+sizex)  * _viewport.Width / celwidth();
             int y1 = cy * _viewport.Height / celheight();
-            int y2 = (cy+1)  * _viewport.Height / celheight();
+            int y2 = (cy+sizey)  * _viewport.Height / celheight();
 
             if (0 < _celNextRatio)
             { // キャラクター画面サイズ遷移中
                 int nx1 = cx * _viewport.Width / _celWidthNext;
-                int nx2 = (cx + 1) * _viewport.Width / _celWidthNext;
+                int nx2 = (cx + sizex) * _viewport.Width / _celWidthNext;
                 int ny1 = cy * _viewport.Height / _celHeightNext;
-                int ny2 = (cy+1) * _viewport.Height / _celHeightNext;
+                int ny2 = (cy + sizey) * _viewport.Height / _celHeightNext;
                 x1 = (x1 * (100 - _celNextRatio) + nx1 * _celNextRatio) / 100;
                 x2 = (x2 * (100 - _celNextRatio) + nx2 * _celNextRatio) / 100;
                 y1 = (y1 * (100 - _celNextRatio) + ny1 * _celNextRatio) / 100;
@@ -242,6 +254,10 @@ namespace Atode
 
             return box;
         }
+        public Rectangle TextBox(int cx, int cy)
+        {
+            return TextBox(cx, cy, 1, 1);
+        }
 
         // 1と2の中間座標を返す
         // ratio1が0であれば2の座標
@@ -258,8 +274,8 @@ namespace Atode
             return r;
         }
 
-        // ビュー画面描画座標を返すが、指定されたドット数だけずらす。影とかエフェクト用
-        public Rectangle TextBox(int cx, int cy, int offsetx, int offsety)
+        // ビュー画面描画座標を返すが、指定された仮想ドット数だけずらす。影とかエフェクト用
+        public Rectangle TextBoxOffset(int cx, int cy, int offsetx, int offsety)
         {
             Rectangle box = TextBox(cx, cy);
             // (画面幅 / 横キャラ数 = ビュー画面上のキャラクター幅）* (ずらし幅 / 仮想キャラクター幅） 精度のため計算順変更
@@ -267,7 +283,8 @@ namespace Atode
             box.Y += _viewport.Height * offsety / celheight() / CEL_SIZE_DEF;
             return box;
         }
-        
+
+#if false
         // キャラクターn個分のドット幅を返す
         public int TextWidth(int num,int x)
         {
@@ -284,7 +301,7 @@ namespace Atode
 
             return y2 - y1;
         }
-
+#endif
         public void CelInit(int width, int height)
         {   // キャラクター画面サイズの初期化
             _celWidth = width;
