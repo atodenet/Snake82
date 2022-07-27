@@ -6,7 +6,7 @@ using System.Diagnostics;
 
 namespace Snake82
 {
-    enum SnakeMode
+    public enum SnakeMode
     {
         Active,
         Death,      // 死にアニメーション中
@@ -15,7 +15,7 @@ namespace Snake82
     }
 
     // ヘビの基底クラス。ここから自機、敵を派生する。
-    class Snake
+    public class Snake
     {
         protected const int INTEGRAL_RANGE = 1000;    // Speedを積み重ねてこのrangeに到達したら次のマスへ
         private const int BUF_ONCE = 100;
@@ -24,6 +24,7 @@ namespace Snake82
         private const int DEATH_TIME_PIKA = 12;     // 死ぬ瞬間の感電表現時間
         private const int RAINBOW_BLINK = 50;        // レインボウモードの色変わり間隔（フレーム数） 3の倍数
         private const int RAINBOW_TIME = 60;        // レインボウモードの持続時間
+        public const int MAPOBJECT_SNAKEPATTERN = 3;                         // 蛇は（頭 体 尻尾）の3オブジェクトで構成される
 
         public int length;          // 体の長さ
         protected bool addbody;     // 体を伸ばすリクエスト
@@ -41,7 +42,7 @@ namespace Snake82
         protected int growstep;   // 成長から成長までに何マス進んだか
         protected int growturn;   // 成長から成長までに何回曲がったか
 
-        protected int objno;        // ゲームマップ上に配置する番号
+        protected int objno;        // ゲームマップ上に配置する自身のオブジェクト番号（頭のオブジェクト番号）
         public SnakeMode modenow;            // esnakemode
         protected int deathCounddown;
         protected int deathPika;
@@ -485,50 +486,143 @@ namespace Snake82
 
         // ゲームマップに自身をプロットする（画面描画ではない）
         // 注意！ 蛇のMapObjectは頭と体で２個連続で登録されていること。（LogicalMapに対して）
-        public void Plot(CollisionMap map)
+        public void Plot(CollisionMap map,int objShift)
         {
             // 死んだ蛇はmapに置かない
             if (modenow == SnakeMode.Active)
             {
-                int headobj;
-                int bodyobj;
+                int headObjNo = objno + objShift;
                 int bodyno = headno;
                 Point pos = body[bodyno--];
                 Point lastpos;
 
-                headobj = objno;
-                bodyobj = objno + 1;    // LogicalMapに1蛇あたり2オブジェクト登録されていることが前提
-
                 // 最初に頭をプロット（体で上書きするため）
-                map.Plot(headobj, pos);
+                map.Plot(headObjNo, pos);
 
                 // 体をプロット （i=0は頭）
                 for (int i = 1; i < length; i++)
                 {
                     pos = body[bodyno--];
-                    map.Plot(bodyobj, pos);
+                    map.Plot(headObjNo + 1, pos);     // 体のオブジェクト番号は頭+1
                 }
                 // 頭から最後端まではプロットし終わった。
 
-                // まだ次のマスへ十分移行していなければ、最後端のさらに一つ先をプロットする
+                // 尻尾（最後端のさらに一つ先）をプロットする
                 // 見た目ではまだそこに蛇がいるから、当たり判定も必要
-                if(posratio*2 < INTEGRAL_RANGE)
+                lastpos = body[bodyno];
+                // 自機は、一番最初は0と1が同じ位置になっている。その時だけは頭を上書きしない。
+                if (lastpos != pos)
                 {
-                    // 自機は、一番最初は0と1が同じ位置になっている。その時だけは頭を上書きしない。
-                    lastpos = body[bodyno];
-                    if (lastpos != pos)
-                    {
-                        map.Plot(bodyobj, lastpos);
-                    }
+                    map.Plot(headObjNo + 2, lastpos); // 尻尾のオブジェクト番号は頭+2
                 }
             }
         }
-
-        // 頭の位置にあるchipを返す。EnemyやSnakeなら、頭が衝突している。
-        public MapObject GetHit(CollisionMap map)
+        public void Plot(CollisionMap map)
         {
-            return map.GetHit(body[headno]);
+            Plot(map, 0);
         }
+
+        // ドット単位の衝突判定用に、頭の四角形（画面座標）を返す
+        // 注意 uppaddingを考慮しないので、画面描画用には使えない。
+        protected Rectangle GetBetweenRect(Game1 g, CollisionMap map, Point pos1,Point pos2)
+        {
+            // pos1とpos2が画面左右端をまたいでいる場合、大きい方に寄せる
+            if(2 <= pos1.X - pos2.X)
+            {
+                pos2.X += map.mapwidth();
+            }
+            if (2 <= pos2.X - pos1.X)
+            {
+                pos1.X += map.mapwidth();
+            }
+            // pos1とpos2が画面上下端をまたいでいる場合、大きい方に寄せる
+            if (2 <= pos1.Y - pos2.Y)
+            {
+                pos2.Y += map.mapheight();
+            }
+            if (2 <= pos2.Y - pos1.Y)
+            {
+                pos1.Y += map.mapheight();
+            }
+            return g.scr.TextBoxBetween(pos1.X, pos1.Y, pos2.X, pos2.Y, posratio, INTEGRAL_RANGE);
+        }
+        protected Rectangle GetHeadRect(Game1 g, CollisionMap map)
+        {
+            Point pos1 = body[headno];
+            Point pos2 = body[headno - 1];
+            return GetBetweenRect(g, map, pos1, pos2);
+        }
+        // 尻尾の四角形（画面座標）を返す
+        protected Rectangle GetTailRect(Game1 g, CollisionMap map)
+        {
+            Point pos1 = body[headno-length+1]; // 最後端
+            Point pos2 = body[headno-length];   // 最後端のさらに後ろ（まだかかっている）
+            return GetBetweenRect(g, map, pos1, pos2);
+        }
+        // 頭の位置にあるchipを返す。EnemyやSnakeであれば、頭が衝突している。
+        public MapObject GetHit(Game1 g, CollisionMap map)
+        {
+            MapObject mapobj = map.GetHit(body[headno]);
+            Rectangle me;
+            Rectangle tgt;  //target
+
+            // 自分自身の頭であれば、衝突ではない
+            if (mapobj.objectno == objno)
+            {   // 何もなし、を返す（衝突していないから）
+                // 注意！ レインボー頭のオブジェクト番号は自機のオブジェクト番号とは異なるのでそのまま返してしまう。
+                return map.GetNone();
+            }
+
+            switch (mapobj.chip)
+            {   // 頭と尻尾はドット単位で衝突判定を行う
+                case MapChip.SnakeHead:
+                case MapChip.RainbowHead:
+                case MapChip.EnemyHead:
+                    tgt = mapobj.snake.GetHeadRect(g, map);
+                    break;
+                case MapChip.SnakeTail:
+                case MapChip.RainbowTail:
+                case MapChip.EnemyTail:
+                    tgt = mapobj.snake.GetTailRect(g, map);
+                    break;
+                default:
+                    // 頭と尻尾以外なら、問答無用で衝突したとみなす。
+                    return mapobj;
+            }
+            // 自分の頭のドット単位
+            me = GetHeadRect(g,map);
+            // デバッグ表示用
+            if (g.collisionVisible)
+            {
+                g.hitRect.Add(me);
+                g.hitRect.Add(tgt);
+            }
+            // 衝突判定
+            // me左端<tgt右端
+            if (me.X + me.Width - 1 < tgt.X)
+            {
+                return map.GetNone();
+            }
+            // tgt左端<me右端
+            if (tgt.X + tgt.Width - 1 < me.X)
+            {
+                return map.GetNone();
+            }
+            // me下端<tgt上端
+            if (me.Y + me.Height- 1 < tgt.Y)
+            {
+                return map.GetNone();
+            }
+            // tgt下端<me上端
+            if (tgt.Y + tgt.Height- 1 < me.Y)
+            {
+                return map.GetNone();
+            }
+
+            return mapobj;
+        }
+
+        // 頭のmap位置を返す
         public Point GetHeadPoint()
         {
             return body[headno];

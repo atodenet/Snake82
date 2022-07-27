@@ -20,7 +20,6 @@ namespace Atode
         protected int upcounter = 0;    // ゲームにとって時間を表す
         protected Scn nextScene = 0;    // 次のシーンを指定（自分自身ではシーンを切り替えることができないから呼び出し元に指示する）
         // 地面描画用変数
-        public bool collisionVisible = false;       // コリジョン可視化フラグ
         protected int GROUND_WAVE_SPEED = 100;
 
         public CollisionMap map;                    // ゲームロジック用の全体マップ 表示用ではない 描画には使わない
@@ -115,7 +114,7 @@ namespace Atode
                 }
             }
 
-            if( collisionVisible)
+            if( g.collisionVisible)
             {   // LogicMapを表示
                 for (y = 0; y < mapheight(); y++)
                 {
@@ -134,7 +133,15 @@ namespace Atode
                         }
                     }
                 }
-
+                // 衝突判定矩形があれば表示
+                if (0 < g.hitRect.Count)
+                {
+                    for(int i = 0; i < g.hitRect.Count; i++)
+                    {
+                        Primitive.FillRectangle(g.spriteBatch, g.hitRect[i], Color.Yellow);
+                    }
+                }
+                g.hitRect.Clear();  // UpdateとDrawが1:1の関係を想定しているので良くないがデバッグ用なので
             }
 
         }

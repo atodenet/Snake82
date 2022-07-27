@@ -25,10 +25,16 @@ namespace Atode
         private SnakeEnemy[] enemy;
         private int enemynum;
         protected const int MAPOBJECT_HEROTOP = 1;                              // 先頭ITEMオブジェクト番号 1は先頭NULLオブジェクト
-        protected const int MAPOBJECT_HEROPATTERN = 4;                          // Heroのオブジェクトバターンは通常頭 通常体 虹頭 虹体 の4つ
+        protected const int MAPOBJECT_HEROPATTERN = Snake.MAPOBJECT_SNAKEPATTERN * 2; // Heroのオブジェクトバターンは（通常 虹）で2倍のオブジェクト
         protected const int MAPOBJECT_ITEMTOP = MAPOBJECT_HEROTOP + MAPOBJECT_HEROPATTERN;
         protected const int MAPOBJECT_ENEMYTOP = MAPOBJECT_ITEMTOP + ITEM_NUM;  // 先頭ENEMYオブジェクト番号
-        protected const int MAPOBJECT_MAX = MAPOBJECT_ENEMYTOP + ENEMY_MAX*2;     // オブジェクトの最大数
+        protected const int MAPOBJECT_MAX = MAPOBJECT_ENEMYTOP + ENEMY_MAX * Snake.MAPOBJECT_SNAKEPATTERN;     // オブジェクトの最大数
+
+        // 隠し機能の公開条件判定
+        private int challengeCounter = 0;           // 公開するために必要な条件の連続回数
+        private const int CHALLENGE_GOAL = 1;//5;       // この連続回数以上になれば機能公開
+        private const int CHALLENGE_MAXSIZE = 39;   // stage10以下で死ぬ
+
 
         private const int CEL_CHANGE_RATE = 3;      // キャラクター画面拡大スピード
         private int celchangerate;                  // キャラクター画面拡大中はスピードを示す 普段は0
@@ -62,16 +68,18 @@ namespace Atode
             map = new CollisionMap(MAPOBJECT_MAX);
 
             hero = new SnakeHero(MAPOBJECT_HEROTOP);
-            map.SetObject(MAPOBJECT_HEROTOP, MapChip.SnakeHead, 0);
-            map.SetObject(MAPOBJECT_HEROTOP+1, MapChip.SnakeBody, 0);
-            map.SetObject(MAPOBJECT_HEROTOP+2, MapChip.RainbowHead, 0);
-            map.SetObject(MAPOBJECT_HEROTOP+3, MapChip.RainbowBody, 0);
+            map.SetObject(MAPOBJECT_HEROTOP, MapChip.SnakeHead, 0, hero);
+            map.SetObject(MAPOBJECT_HEROTOP + 1, MapChip.SnakeBody, 0, hero);
+            map.SetObject(MAPOBJECT_HEROTOP + 2, MapChip.SnakeTail, 0, hero);
+            map.SetObject(MAPOBJECT_HEROTOP + 3, MapChip.RainbowHead, 0, hero);
+            map.SetObject(MAPOBJECT_HEROTOP + 4, MapChip.RainbowBody, 0, hero);
+            map.SetObject(MAPOBJECT_HEROTOP + 5, MapChip.RainbowTail, 0, hero);
 
             apple = new Item[ITEM_NUM];
             for (int no = 0; no < ITEM_NUM; no++)
             {
                 apple[no] = new Item(MAPOBJECT_ITEMTOP + no);
-                map.SetObject(MAPOBJECT_ITEMTOP + no, MapChip.Item, no);
+                map.SetObject(MAPOBJECT_ITEMTOP + no, MapChip.Item, no,null);
             }
         }
 
@@ -146,10 +154,6 @@ namespace Atode
                     gameoverpos = -GAMEOVER_STAY * INTEGRAL_RANGE;
                 }
             }
-            if (g.inp.Get((int)Key.Pup))
-            {
-                collisionVisible = !collisionVisible;
-            }
 
             if (phasenow == PlayPhase.Ranking)
             {
@@ -200,11 +204,13 @@ namespace Atode
                     if (enemynum < ENEMY_MAX)
                     {
                         Point pos = SearchMapSpace(g);
-                        SnakeEnemy newenemy = new SnakeEnemy(MAPOBJECT_ENEMYTOP + enemynum * 2);
+                        int mapObjectNo = MAPOBJECT_ENEMYTOP + enemynum * Snake.MAPOBJECT_SNAKEPATTERN;
+                        SnakeEnemy newenemy = new SnakeEnemy(mapObjectNo);
                         newenemy.Init(pos);
                         enemy[enemynum] = newenemy;
-                        map.SetObject(MAPOBJECT_ENEMYTOP + enemynum * 2, MapChip.EnemyHead, enemynum);
-                        map.SetObject(MAPOBJECT_ENEMYTOP + enemynum * 2 + 1, MapChip.EnemyBody, enemynum);
+                        map.SetObject(mapObjectNo, MapChip.EnemyHead, enemynum, newenemy);
+                        map.SetObject(mapObjectNo + 1, MapChip.EnemyBody, enemynum, newenemy);
+                        map.SetObject(mapObjectNo + 2, MapChip.EnemyTail, enemynum, newenemy);
                         enemynum++;
                     }
                 }
@@ -234,19 +240,20 @@ namespace Atode
                 // プレイフェーズ中のみ自機ヒット判定
                 if(phasenow == PlayPhase.Play)
                 {
-                    MapObject mo = hero.CheckHit(map);
+                    MapObject mo = hero.CheckHit(g,map);
                     switch (mo.chip)
                     {
                         case MapChip.Item:
                             // アイテムを取った
                             // 取られたアイテムを除去
-                            apple[mo.Localno].SetDeath();
+                            apple[mo.localNo].SetDeath();
                             break;
                         case MapChip.EnemyHead:
                         case MapChip.EnemyBody:
+                        case MapChip.EnemyTail:
                             // 敵を倒した
                             // 倒された敵を殺す
-                            enemy[mo.Localno].SetDeath(true);
+                            enemy[mo.localNo].SetDeath(true);
                             break;
                     }
                 }
@@ -254,7 +261,8 @@ namespace Atode
                 // 敵とアイテムを動かす
                 // デスアニメ中は静止した世界
                 if (phasenow == PlayPhase.Death)
-                {   // 敵は限定的に動く
+                {   // 敵は限定的に動く  もともとは、衝突時に敵と自機にまだ隙間があるのを誤魔化すため（衝突判定を変えたので必要なくなった）
+                    // 止め絵はぴったりマスにハマった状態が美しいから残す
                     for (no = 0; no < enemynum; no++)
                     {
                         enemy[no].UpdateStopWorld(g, map);
@@ -269,7 +277,7 @@ namespace Atode
                         {
                             enemy[no].Reborn(SearchMapSpace(g));
                         }
-                        if(enemy[no].CheckHit(map) == 1)
+                        if(enemy[no].CheckHit(g,map) == 1)
                         {
                             hero.Grow(mapheight());
                         }
@@ -295,6 +303,23 @@ namespace Atode
                     if (hero.modenow == SnakeMode.Death)
                     {
                         phasenow = PlayPhase.Death;
+                        // 死んだタイミングで隠し機能判定
+                        if (hero.length <= CHALLENGE_MAXSIZE)
+                        {   // 条件判定
+                            if(++challengeCounter == CHALLENGE_GOAL)
+                            {   // 隠し機能をONにする
+                                g.autopilotVisible = true;
+                                g.autopilotEnable = true;
+                                g.autopilotAppear = true;
+                            }
+                        }
+                        else
+                        {   // 条件を満たさない場合は、非情にもカウンターリセット
+                            if (challengeCounter < CHALLENGE_GOAL)
+                            {
+                                challengeCounter = 0;
+                            }
+                        }
                     }
                     break;
                 case PlayPhase.Death:
@@ -385,9 +410,9 @@ namespace Atode
             int xleft;
             int y = UPPER_PADDING;
             bool mini;
-            String title;
-            const String titleLong = "Rank   Date    Size  Stage";
-            const String titleMini = "Rank   Date    Size";
+            string title;
+            const string titleLong = "Rank   Date    Size  Stage";
+            const string titleMini = "Rank   Date    Size";
 
             if (g.celwidth() < titleLong.Length)
             {
@@ -400,7 +425,7 @@ namespace Atode
                 title = titleLong;
             }
             xleft = (g.celwidth() - title.Length) / 2;
-            g.DrawString(title, xleft, y++, Color.Honeydew);
+            g.DrawString(title, xleft, y++, Color.LightBlue);
 
         }
 
@@ -470,6 +495,13 @@ namespace Atode
                 xpos = (g.celwidth() - 1) / 2 + 1;
                 g.DrawString("Stage", xpos, 0, Color.LightBlue);
                 g.DrawString(stage.ToString(), xpos + 5, 0, Color.MidnightBlue);
+            }
+            // スピード表示
+            if(g.speedRate != Game1.SPEED_DEFAULT)
+            {   // 標準スピードの場合は表示なし
+                String ratestr = g.speedRate.ToString();
+                xpos = g.celwidth() - ratestr.Length;
+                g.DrawString(ratestr, xpos, 0, Color.DarkSeaGreen);
             }
 
             if (phasenow == PlayPhase.Ranking)

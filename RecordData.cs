@@ -7,7 +7,7 @@ namespace Atode
     public class RecordData
     {   // セーブデータ管理クラス
         private const string COMPANY = "atode.net";
-        private String filename = "noname.dat";
+        private string filename = "noname.dat";
 
         // 以下、ファイルに書き込み、読み取りするデータ
         private const int DATAVERSION = 1;
@@ -15,22 +15,22 @@ namespace Atode
         public int height = 0;
         public bool fullscreen = false;
         
-        public RecordData(String title)
+        public RecordData(string title)
         {
             filename = title;
         }
 
-        private String GetFolder()
+        private string GetFolder()
         {
             // これはWindows依存か？
-            String folder = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            string folder = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
             folder += "\\";
             folder += COMPANY;
             return folder;
         }
-        private String GetName()
+        private string GetName()
         {
-            String name = GetFolder();
+            string name = GetFolder();
             name += "\\";
             name += filename;
             name += ".dat";
@@ -38,7 +38,7 @@ namespace Atode
         }
         public int Save(int width, int height,bool fullscreen)
         {
-            String folder = GetFolder();
+            string folder = GetFolder();
 
             if (!Directory.Exists(folder))
             {

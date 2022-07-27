@@ -31,7 +31,7 @@ namespace Snake82
             {
                 if (eatItemMode)
                 {   // アイテム捕食中
-                    MapObject mo = GetHit(map);
+                    MapObject mo = GetHit(g,map);
                     if (mo.chip == MapChip.Item)
                     {
                         rc = 1;

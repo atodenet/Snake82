@@ -4,12 +4,14 @@ using Microsoft.Xna.Framework.Graphics;
 using Atode;
 using System;
 using System.Diagnostics;
+using System.Collections.Generic;
 
 namespace Snake82
 {
     public class Game1 : Game
     {
-        private const string _titleName = "snake82";
+        public const string copyright = "Copyright(c)2022 metys";
+        private const string _titleName = "Snake82";
         private const int CEL_WIDTH_START = 18;       // 横キャラクター数の初期値
         private const int CEL_HEIGHT_START = 10;      // 縦キャラクター数の初期値
         private const int PAUSE_INVISIVLE_TIME = 120;   // PAUSE表示を消す期間
@@ -26,17 +28,17 @@ namespace Snake82
         public Texture2D fonts = null;
         public Texture2D txgameover = null;
         public Random rand;
+        
         private bool _resized = false;
         private Viewport _viewedge;
         private BasicEffect effect;
         private VertexPositionColor[] vertexpFullscreen;
 
+
         // オートパイロット関係
-        public bool autopilotVisible = true;//false;       // ユーザーにこの機能を公開するか
-        public bool autopilotEnable = true;//false;        // ユーザーによるオートパイロットのON/OFF
-        private int autopilotChallenge = 0;         // 公開するために必要な条件の連続回数
-        private const int AUTOPILOT_OPEN = 5;       // この連続回数以上になれば機能公開
-        private const int AUTOPILOT_SIZE = 39;      // stage10以下で死ぬ
+        public bool autopilotVisible = false;       // ユーザーにこの機能を公開するか
+        public bool autopilotEnable = false;        // ユーザーによるオートパイロットのON/OFF
+        public bool autopilotAppear = false;        // ユーザー告知
 
         // シーン関係
         private Scn _scheneNo = Scn.None;
@@ -52,6 +54,10 @@ namespace Snake82
         private DeleNext NextScene;
         delegate Color DeleBackColor();
         private DeleBackColor BackColor;
+
+        // デバッグ用
+        public bool collisionVisible = false;       // コリジョン可視化フラグ
+        public List<Rectangle> hitRect;
 
         public int celwidth() { return scr.celwidth(); }
         public int celheight() { return scr.celheight(); }
@@ -90,6 +96,8 @@ namespace Snake82
             new VertexPositionColor(new Vector3(-1F, -1F, 0), Color.Black),
             new VertexPositionColor(new Vector3(1F, -1F, 0), Color.Black),
             };
+            // デバッグ用
+            hitRect = new List<Rectangle>();
         }
         protected override void Initialize()
         {
@@ -150,6 +158,11 @@ namespace Snake82
                     scr.ToggleSize(this);
                 }
                 // システム系操作完了
+
+                if (inp.Get((int)Key.Pup))
+                {   // デバッグ表示用
+                    collisionVisible = !collisionVisible;
+                }
 
                 if ( inp.bPause == false)
                 {   // シーンに関係なく、ポーズ中でない場合のみゲームは進行する。
@@ -215,7 +228,7 @@ namespace Snake82
                 }
                 else if (0 < _pauselogo)
                 {   // ポーズ中のゲーム名オーバーレイ
-                    const String promoLogo = "Snake82";
+                    const string promoLogo = "Snake82";
                     spriteBatch.Begin(samplerState: SamplerState.PointClamp);
                     // 文字の位置
                     int logoScale = celwidth() / promoLogo.Length;
@@ -228,7 +241,7 @@ namespace Snake82
                 }
                 else
                 {   // 通常のポーズ中表示
-                    const String pauseLogo = " PAUSE ";
+                    const string pauseLogo = " PAUSE ";
                     spriteBatch.Begin(samplerState: SamplerState.PointClamp);
                     // 文字の位置
                     int cx = celwidth() / 2 - pauseLogo.Length/2;
@@ -362,7 +375,7 @@ namespace Snake82
         }
 
         // 文字のフォントサイズの何ドット分かずらして文字列描画 文字の影や縁取りの表現に使う
-        public void DrawStringOffset(String str, int x, int y, Color color, int xoffset, int yoffset)
+        public void DrawStringOffset(string str, int x, int y, Color color, int xoffset, int yoffset)
         {
             char code;
             Rectangle rect;
@@ -378,7 +391,7 @@ namespace Snake82
 
         // 文字列描画 文字サイズ倍率指定あり
         // scaleは文字の大きさ倍率
-        public void DrawString(String str, int x, int y, Color color,int scale)
+        public void DrawString(string str, int x, int y, Color color,int scale)
         {
             char code;
             Rectangle rect;
@@ -392,7 +405,7 @@ namespace Snake82
         }
 
         // 標準の文字サイズで文字列描画
-        public void DrawString(String str, int x, int y, Color color)
+        public void DrawString(string str, int x, int y, Color color)
         {
             DrawString(str, x, y, color, 1);
         }

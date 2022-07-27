@@ -64,19 +64,19 @@ namespace Snake82
 
         // 頭の衝突判定と衝突時処理
         // return: 衝突したオブジェクト
-        public MapObject CheckHit(CollisionMap map)
+        public MapObject CheckHit(Game1 g, CollisionMap map)
         {
-            MapObject mo = GetHit(map);
+            MapObject mo = GetHit(g,map);
 
             if (mo.chip == MapChip.Item)
             {   // アイテムを取った
                 Grow(map.mapheight());
             }
-            else if (mo.chip == MapChip.SnakeBody || mo.chip == MapChip.RainbowBody)
+            else if (mo.chip == MapChip.SnakeBody || mo.chip == MapChip.SnakeTail || mo.chip == MapChip.RainbowBody || mo.chip == MapChip.RainbowTail)
             {   // 頭が自分の体に衝突した
                 SetDeath(true);
             }
-            else if (mo.chip == MapChip.EnemyHead || mo.chip == MapChip.EnemyBody)
+            else if (mo.chip == MapChip.EnemyHead || mo.chip == MapChip.EnemyBody || mo.chip == MapChip.EnemyTail)
             {   // 頭が敵に衝突した
                 if ( IsRainbow() )
                 {   // 無敵モード 敵を倒す
@@ -98,36 +98,15 @@ namespace Snake82
         }
 
         // ゲームマップに自身をプロットする（画面描画ではない）
-        // 基底クラスSnakeのPlotは使わない
         public new void Plot(CollisionMap map)
         {
-            // 死んだ蛇はmapに置かない
-            if (modenow == SnakeMode.Active)
-            {
-                int headobj;
-                int bodyobj;
-                int bodyno = headno;
-                Point pos = body[bodyno--];
-
-                if ( IsRainbow() )
-                {   // 無敵モード
-                    headobj = objno + 2;
-                    bodyobj = objno + 3;
-                }
-                else
-                {   // 通常時
-                    headobj = objno;
-                    bodyobj = objno+1;
-                }
-
-                // 最初に頭をプロット（体で上書きするため）
-                map.Plot( headobj,pos);
-
-                for (int i = 1; i < length; i++)
-                {   // 体をプロット （i=0は頭）
-                    pos = body[bodyno--];
-                    map.Plot(bodyobj,pos);
-                }
+            if ( IsRainbow() )
+            {   // 無敵モードの時はオブジェクト番号が変わる。レインボー蛇をプロットする。
+                Plot(map, MAPOBJECT_SNAKEPATTERN);
+            }
+            else
+            {   // 通常時はオブジェクト番号はデフォルトのまま。
+                Plot(map,0);
             }
         }
 

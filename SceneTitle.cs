@@ -14,13 +14,14 @@ namespace Atode
         Quit,
         Speed,
         AutoPilot,
+        FullScreen,
         Exit,
     }
     struct MenuInfo
     {
         public MenuType type;
         public bool visible;
-        public String name;
+        public string name;
         public int level;
 
         public MenuInfo(string name, MenuType type, bool visible,int level)
@@ -36,10 +37,10 @@ namespace Atode
         protected const int ENEMY_MAX = 20;
         private const int ITEM_NUM = 1;
         protected const int MAPOBJECT_HEROTOP = 1;                              // 先頭ITEMオブジェクト番号 1は先頭NULLオブジェクト
-        protected const int MAPOBJECT_HEROPATTERN = 4;                          // Heroのオブジェクトバターンは通常頭 通常体 虹頭 虹体 の4つ
+        protected const int MAPOBJECT_HEROPATTERN = Snake.MAPOBJECT_SNAKEPATTERN * 2; // Heroのオブジェクトバターンは（通常 虹）で2倍のオブジェクト
         protected const int MAPOBJECT_ITEMTOP = MAPOBJECT_HEROTOP + MAPOBJECT_HEROPATTERN;
         protected const int MAPOBJECT_ENEMYTOP = MAPOBJECT_ITEMTOP + ITEM_NUM;  // 先頭ENEMYオブジェクト番号
-        protected const int MAPOBJECT_MAX = MAPOBJECT_ENEMYTOP + ENEMY_MAX*2;     // オブジェクトの最大数
+        protected const int MAPOBJECT_MAX = MAPOBJECT_ENEMYTOP + ENEMY_MAX * Snake.MAPOBJECT_SNAKEPATTERN;     // オブジェクトの最大数
         private SnakeDemo snake;
         private Item item;
         private MenuInfo[] menu;
@@ -48,6 +49,11 @@ namespace Atode
         private const int SUBMENU_LIFT = 2;
         private int MenuTypeLength() { return Enum.GetNames(typeof(MenuType)).Length; }
         private int[] speedRateList = { 7, 10, 15, 20 };
+        private int appearCounter;
+        private int appearNumber;
+        private const int FULLSCREEN_REACTION = 150;    // フルスクリーン変更はハードウェア操作なので頻繁にされるとトラブルの元となる
+        private int fullscreenCounter;
+
 
         private bool enableDeath = false; 
 
@@ -56,13 +62,15 @@ namespace Atode
             map = new CollisionMap(MAPOBJECT_MAX);
 
             snake = new SnakeDemo(MAPOBJECT_HEROTOP);
-            map.SetObject(MAPOBJECT_HEROTOP, MapChip.SnakeHead, 0);
-            map.SetObject(MAPOBJECT_HEROTOP + 1, MapChip.SnakeBody, 0);
-            map.SetObject(MAPOBJECT_HEROTOP + 2, MapChip.RainbowHead, 0);
-            map.SetObject(MAPOBJECT_HEROTOP + 3, MapChip.RainbowBody, 0);
+            map.SetObject(MAPOBJECT_HEROTOP, MapChip.SnakeHead, 0,snake);
+            map.SetObject(MAPOBJECT_HEROTOP + 1, MapChip.SnakeBody, 0, snake);
+            map.SetObject(MAPOBJECT_HEROTOP + 2, MapChip.SnakeTail, 0, snake);
+            map.SetObject(MAPOBJECT_HEROTOP + 3, MapChip.RainbowHead, 0, snake);
+            map.SetObject(MAPOBJECT_HEROTOP + 4, MapChip.RainbowBody, 0, snake);
+            map.SetObject(MAPOBJECT_HEROTOP + 5, MapChip.RainbowTail, 0, snake);
 
             item = new Item(MAPOBJECT_ITEMTOP);
-            map.SetObject(MAPOBJECT_ITEMTOP, MapChip.Item,0);
+            map.SetObject(MAPOBJECT_ITEMTOP, MapChip.Item,0,null);
 
             // タイトル画面のメニュー作成
             menu = new MenuInfo[MenuTypeLength()];
@@ -71,7 +79,8 @@ namespace Atode
             menu[2] = new MenuInfo("QUIT", MenuType.Quit, true,0);
             menu[3] = new MenuInfo("SPEED", MenuType.Speed, true, 1);
             menu[4] = new MenuInfo("AUTO PILOT", MenuType.AutoPilot, false, 1);
-            menu[5] = new MenuInfo("EXIT", MenuType.Exit, true, 1);
+            menu[5] = new MenuInfo("FULL SCREEN", MenuType.FullScreen, true, 1);
+            menu[6] = new MenuInfo("EXIT", MenuType.Exit, true, 1);
         }
 
         public void Init(Game1 g)
@@ -91,9 +100,19 @@ namespace Atode
             // メニュー選択の初期化
             menuSelect = 0; // START
             menuLevel = 0;  // 最上位階層
+            appearCounter = 0;
+            appearNumber = 0;
             if (g.autopilotVisible)
             {
                 menu[4].visible = true;
+            }
+            if (g.autopilotAppear)
+            {   // 隠し機能が登場したので
+                menuLevel = 1;  // OPTION画面を見せつける
+                menuSelect = 4;
+                appearCounter = INTEGRAL_RANGE;
+                appearNumber = 1;
+                g.autopilotAppear = false;
             }
 
             base.Init();
@@ -170,6 +189,17 @@ namespace Atode
                     {   // 衝突防止機能on
                         g.autopilotEnable = true;
                     }
+                    if (menu[menuSelect].type == MenuType.FullScreen)
+                    {   // フルスクリーンモードへ
+                        if(g.graphics.IsFullScreen == false)
+                        {
+                            if (fullscreenCounter + FULLSCREEN_REACTION < upcounter)
+                            {
+                                fullscreenCounter = upcounter;
+                                g.scr.ToggleFull(g);
+                            }
+                        }
+                    }
                 }
                 if (g.inp.Get((int)Key.Right))
                 {
@@ -190,6 +220,17 @@ namespace Atode
                     {   // 衝突防止機能off
                         g.autopilotEnable = false;
                     }
+                    if (menu[menuSelect].type == MenuType.FullScreen)
+                    {   // ウィンドウモードへ
+                        if (g.graphics.IsFullScreen == true)
+                        {
+                            if (fullscreenCounter + FULLSCREEN_REACTION < upcounter)
+                            {
+                                fullscreenCounter = upcounter;
+                                g.scr.ToggleFull(g);
+                            }
+                        }
+                    }
                 }
             }
 
@@ -208,7 +249,7 @@ namespace Atode
 
             if(enableDeath)
             {   // 無敵モードではない 衝突判定を行う
-                MapObject mo = snake.GetHit(map);
+                MapObject mo = snake.GetHit(g,map);
                 if (map.IsSnakeChip(mo.chip))
                 {   // 頭が蛇に衝突した
                     if( mo.chip==MapChip.SnakeHead || mo.chip == MapChip.RainbowHead)
@@ -262,9 +303,51 @@ namespace Atode
                 }
             }
 
+            // その他処理
+            // 隠し機能告知
+            if (0 < appearCounter)
+            {
+                appearCounter -= 15;
+                if( appearCounter <= 0)
+                {
+                    switch (appearNumber)
+                    {
+                        case 1:
+                        case 2:
+                            appearNumber++;
+                            appearCounter = INTEGRAL_RANGE;
+                            break;
+                        default:    // 終了
+                            appearNumber = 0;
+                            appearCounter = 0;
+                            break;
+                    }
+                }
+            }
+
             base.Update(g);
         }
 
+        // ON OFF の選択メニューを描画
+        private void DrawMenuOnoff(Game1 g,int cy,Color clr,bool onis)
+        {
+            string[] menuOnoff = { "on", "off" };
+            int cx = g.celwidth() / 2 - 3;
+            int selected = onis ? 0 : 1;
+            for (int n = 0; n < menuOnoff.Length; n++)
+            {
+                Color strcolor = clr;
+                if (n == selected)
+                {
+                    Rectangle grnd = g.scr.TextBox(cx - 1, cy, menuOnoff[n].Length + 2, 1);
+                    Primitive.FillRectangle(g.spriteBatch, grnd, clr);
+                    strcolor = Color.White;
+                }
+                g.DrawString(menuOnoff[n], cx, cy, strcolor);
+                cx += menuOnoff[n].Length + 1;
+            }
+
+        }
         // メニュー描画
         private void DrawMenu(Game1 g)
         {
@@ -272,9 +355,13 @@ namespace Atode
             int cy = g.celheight() / 2;
             int blinking;
 
-            if (0 < menuLevel && g.autopilotVisible)
+            if (0 < menuLevel )
             {
                 cy -= SUBMENU_LIFT;
+                if (g.autopilotVisible)
+                {
+                    cy -= SUBMENU_LIFT;
+                }
             }
 
             // 選択メニューを表示
@@ -299,7 +386,7 @@ namespace Atode
                         // blinking は 0-30 になる
                         clr = new Color(255, blinking * 6 + 70, blinking * 6 + 70);
                     }
-                    String menustr = menu[i].name;
+                    string menustr = menu[i].name;
                     cx = g.celwidth() / 2 - (menustr.Length + 1) / 2;
                     g.DrawString(menustr, cx, cy++, clr);
 
@@ -317,7 +404,7 @@ namespace Atode
 
                         for (n = 0; n < speedRateList.Length; n++)
                         {
-                            String speedMenu = speedRateList[n].ToString();
+                            string speedMenu = speedRateList[n].ToString();
                             Color strcolor = clr;
                             if (speedRateList[n] == g.speedRate)
                             {
@@ -333,30 +420,22 @@ namespace Atode
                     // オートパイロットon/offメニュー
                     if (menu[i].type == MenuType.AutoPilot)
                     {
-                        String[] autoMenu = { "on", "off" };
-                        cx = g.celwidth() / 2 - 3;
-                        int selected = g.autopilotEnable ? 0 : 1;
-                        for (int n = 0; n < autoMenu.Length; n++)
-                        {
-                            Color strcolor = clr;
-                            if (n== selected)
-                            {
-                                Rectangle grnd = g.scr.TextBox(cx - 1, cy, autoMenu[n].Length + 2, 1);
-                                Primitive.FillRectangle(g.spriteBatch, grnd, clr);
-                                strcolor = Color.White;
-                            }
-                            g.DrawString(autoMenu[n], cx, cy, strcolor);
-                            cx += autoMenu[n].Length + 1;
-                        }
-                        cy++;
+                        DrawMenuOnoff(g, cy++, clr, g.autopilotEnable);
+                    }
+
+                    // フルスクリーンon/offメニュー
+                    if (menu[i].type == MenuType.FullScreen)
+                    {
+                        DrawMenuOnoff(g, cy++, clr, g.graphics.IsFullScreen);
                     }
                 }
             }
+
             // メニューの下に、どのキーを押せばよいかボタンガイドを表示
-            // キーボード操作とゲームパッド操作を定期的に入れ替える
-            String guidestr = "Enter Key";
-            float alpha = 1f;
             const int GUIDE_PERIOD = 240;
+            float alpha = 1f;
+            // キーボード操作とゲームパッド操作を定期的に入れ替える
+            string guidestr = "Enter Key";
             blinking = upcounter % GUIDE_PERIOD;
             if (GUIDE_PERIOD / 2 <= blinking)
             {   // \a = ベル制御コード = ボタンAのアイコン
@@ -371,12 +450,31 @@ namespace Atode
             {
                 alpha = (float)blinking / (float)(GUIDE_PERIOD / 8);
             }
-            cx = g.celwidth() / 2 - (guidestr.Length + 1) / 2;
-            g.DrawString(guidestr, cx, cy, Color.LightGray * alpha);
+            if (menuLevel == 0)
+            {   // トップ階層の場合は、決定ボタンを表示
+                cx = g.celwidth() / 2 - (guidestr.Length + 1) / 2;
+                g.DrawString(guidestr, cx, cy, Color.LightGray * alpha);
+            }
+            else
+            {   // OPTION画面の場合は、上下左右で操作することを表示
+                const int ARROW_LENGTH = 4;
+                cx = g.celwidth() / 2 - (ARROW_LENGTH + 1) / 2;
+                Rectangle rect;
+                rect = g.scr.TextBox(cx++, cy);
+                g.spriteBatch.Draw(g.fonts, rect, g.Font((char)0), Color.LightGray * alpha);
+                rect = g.scr.TextBox(cx++, cy);
+                g.spriteBatch.Draw(g.fonts, rect, g.Font((char)1), Color.LightGray * alpha);
+                rect = g.scr.TextBox(cx++, cy);
+                g.spriteBatch.Draw(g.fonts, rect, g.Font((char)2), Color.LightGray * alpha);
+                rect = g.scr.TextBox(cx, cy);
+                g.spriteBatch.Draw(g.fonts, rect, g.Font((char)3), Color.LightGray * alpha);
+            }
         }
 
         public new void Draw(Game1 g)
         {
+            int cx;
+            int cy;
             // フレーム描画
             // spriteのドット絵をボケない指定
             g.spriteBatch.Begin(samplerState: SamplerState.PointClamp);
@@ -386,46 +484,58 @@ namespace Atode
             snake.Draw(g, mapwidth(), mapheight(), 0);
             item.Draw(g, 0);
 
-            // タイトル文字表示 色は明滅させる
-            String titlestr = "Snake82";
-            int cx = g.celwidth() / 2 - (titlestr.Length + 1) / 2;
-            int cy = g.celheight() / 2 - 2;
-            if (0 < menuLevel && g.autopilotVisible)
+            // オプションメニューでauto pilotメニュー表示ありの場合はスペースがないのでタイトル表示をカット
+            if (menuLevel==0 || g.autopilotVisible == false)
             {
-                cy -= SUBMENU_LIFT;
-            }
-            int blinking;
-            for (int i = 0; i < titlestr.Length; i++)
-            {   // 一文字ごとに明るさを変える
-                // 明るさを計算
-                blinking = (upcounter - i * 10) % 180;
-                if (90 <= blinking)
+                // タイトル文字表示 色は明滅させる
+                string titlestr = "Snake82";
+                cx = g.celwidth() / 2 - (titlestr.Length + 1) / 2;
+                cy = g.celheight() / 2 - 2;
+                if (0 < menuLevel)
                 {
-                    blinking = 180 - blinking;
+                    cy -= SUBMENU_LIFT;
                 }
-                blinking -= 30;
-                if (blinking < 0)
-                {
-                    blinking = 0;
+                int blinking;
+                for (int i = 0; i < titlestr.Length; i++)
+                {   // 一文字ごとに明るさを変える
+                    // 明るさを計算
+                    blinking = (upcounter - i * 10) % 180;
+                    if (90 <= blinking)
+                    {
+                        blinking = 180 - blinking;
+                    }
+                    blinking -= 30;
+                    if (blinking < 0)
+                    {
+                        blinking = 0;
+                    }
+                    // blinking は 0-60 になる
+                    Color titlecolor = new Color(255, blinking * 2 + 130, blinking * 2 + 130);
+                    g.DrawString(titlestr.Substring(i, 1), cx++, cy, titlecolor);
                 }
-                // blinking は 0-60 になる
-                Color titlecolor = new Color(255, blinking * 2 + 130, blinking * 2 + 130);
-                g.DrawString(titlestr.Substring(i, 1), cx++, cy, titlecolor);
             }
-
+#if false
+            // コピーライト表示
+            cx = Game1.copyright.Length - ((upcounter / 20) % (Game1.copyright.Length*2));
+            g.DrawString(Game1.copyright, cx, g.celheight()-1, Color.White * (float)0.05);
+#endif
             // ユーザー選択メニューを描画
             DrawMenu(g);
-#if false
-            // 操作表示
-            int x = g.celwidth() / 2 - 5;
-            int y = g.celheight() / 2;
-            g.DrawString("PUSH", x, y, Color.LightSalmon);
-            x += 5;
-            g.spriteBatch.Draw(g.fonts, g.scr.TextBox(x++, y), g.Font((char)2), Color.LightSalmon);
-            g.spriteBatch.Draw(g.fonts, g.scr.TextBox(x++, y), g.Font((char)0), Color.LightSalmon);
-            g.spriteBatch.Draw(g.fonts, g.scr.TextBox(x++, y), g.Font((char)1), Color.LightSalmon);
-            g.spriteBatch.Draw(g.fonts, g.scr.TextBox(x, y), g.Font((char)3), Color.LightSalmon);
-#endif
+
+            if(0 < appearCounter)
+            {   // 隠し機能オープン告知
+                string[] appearMessage = { "AUTO", "PILOT", "OPEN" };
+                string msg = appearMessage[appearNumber-1];
+
+                // 文字の位置
+                int logoScale = mapwidth() / 5; // PILOTの文字長で決める
+                cx = mapwidth() / 2 - msg.Length * logoScale / 2;
+                cy = mapheight() / 2 - logoScale / 2;
+                float alpha = (float)appearCounter/(float)INTEGRAL_RANGE; // 透明度
+                // 文字表示
+                g.DrawString(msg, cx, cy, Color.Red * alpha, logoScale);
+            }
+
             g.spriteBatch.End();
 
             base.Draw(g);

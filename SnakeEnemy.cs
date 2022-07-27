@@ -166,24 +166,24 @@ namespace Snake82
 
         // 頭の衝突判定と衝突時処理
         // return: 0=変化なし 1=自機に当たって死んだ 2=それ以外
-        public int CheckHit(CollisionMap map)
+        public int CheckHit(Game1 g, CollisionMap map)
         {
             int rc = 0;
 
             if(modenow == SnakeMode.Active)
             {
-                MapObject mo = GetHit(map);
+                MapObject mo = GetHit(g,map);
 
                 if (map.IsSnakeChip(mo.chip))
                 {   // 頭がなにか蛇の体に衝突した
-                    if ((mo.objectno == objno && mo.chip == MapChip.EnemyHead) || mo.chip == MapChip.SnakeHead)
+                    if (mo.chip == MapChip.SnakeHead)
                     {
-                        // 自分の頭であれば何もしない、自機の頭であれば敵の方が勝つ
+                        // 何もしない。自機の頭であれば敵の方が勝つ
                     }
                     else
                     {
                         // 自分の頭以外であれば死ぬ
-                        if ( mo.chip == MapChip.SnakeBody || mo.chip == MapChip.RainbowHead || mo.chip == MapChip.RainbowBody)
+                        if ( mo.chip == MapChip.SnakeBody || mo.chip == MapChip.SnakeTail || mo.chip == MapChip.RainbowHead || mo.chip == MapChip.RainbowBody || mo.chip == MapChip.RainbowTail)
                         {   // 自機にぶつかった
                             SetDeath(true);
                             rc = 1;

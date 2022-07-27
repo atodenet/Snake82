@@ -13,8 +13,8 @@ namespace Atode
 
 		#region Private Members
 
-		private static readonly Dictionary<String, List<Vector2>> circleCache = new Dictionary<string, List<Vector2>>();
-		//private static readonly Dictionary<String, List<Vector2>> arcCache = new Dictionary<string, List<Vector2>>();
+		private static readonly Dictionary<string, List<Vector2>> circleCache = new Dictionary<string, List<Vector2>>();
+		//private static readonly Dictionary<string, List<Vector2>> arcCache = new Dictionary<string, List<Vector2>>();
 		private static Texture2D pixel;
 
 		#endregion
@@ -58,7 +58,7 @@ namespace Atode
 		private static List<Vector2> CreateCircle(double radius, int sides)
 		{
 			// Look for a cached version of this circle
-			String circleKey = radius + "x" + sides;
+			string circleKey = radius + "x" + sides;
 			if (circleCache.ContainsKey(circleKey))
 			{
 				return circleCache[circleKey];
