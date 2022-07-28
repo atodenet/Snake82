@@ -24,15 +24,16 @@ namespace Snake82
         private const int DEATH_TIME_PIKA = 12;     // 死ぬ瞬間の感電表現時間
         private const int RAINBOW_BLINK = 50;        // レインボウモードの色変わり間隔（フレーム数） 3の倍数
         private const int RAINBOW_TIME = 60;        // レインボウモードの持続時間
-        public const int MAPOBJECT_SNAKEPATTERN = 3;                         // 蛇は（頭 体 尻尾）の3オブジェクトで構成される
+        public const int MAPOBJECT_SNAKEPATTERN = 3;     // 蛇は（頭 体 尻尾）の3オブジェクトで構成される
+        protected const int EMERGENCY_FRAME = 5;    // 衝突の何フレーム前で衝突回避チェックするか
 
         public int length;          // 体の長さ
         protected bool addbody;     // 体を伸ばすリクエスト
         protected int speed;        // 前進速度 0 - INTEGRAL_RANGE (INTEGRAL_RANGEは1フレームで1マス進む速度） ratioの加算に使用する
         protected int headno;       // 位置バッファ中の頭の位置 必ず1以上
         protected int posratio;     // 前のマスから次のマスへの遷移率 INTEGRAL_RANGEに達したら1マス
-        public int direction;       // 次の頭の進行方向(0,1,2,3)上が0 反時計回り
-        protected int dirnow;       // 今の進行方向
+        public int direction;       // 次回の頭の進行方向(0,1,2,3)上が0 反時計回り
+        protected int dirnow;       // 前回の頭の進行方向
         protected int dirlast;      // 今の頭の方向(0,1,2,3)
         protected int dirratio;     // 頭の方向の遷移率 0 - INTEGRAL_RANGE、INTEGRAL_RANGEに達したあとはrotだけで頭の向きは決まる
         protected int buflength;    // 体位置メモリバッファ長
@@ -43,7 +44,7 @@ namespace Snake82
         protected int growturn;   // 成長から成長までに何回曲がったか
 
         protected int objno;        // ゲームマップ上に配置する自身のオブジェクト番号（頭のオブジェクト番号）
-        public SnakeMode modenow;            // esnakemode
+        public SnakeMode modenow;            // スネークの状態
         protected int deathCounddown;
         protected int deathPika;
         protected int deathspeed;
@@ -68,7 +69,8 @@ namespace Snake82
             headno = 1;
             posratio = 0;
             body[0] = body[1] = startPos;
-            direction = 3; dirlast = 0;
+            dirnow = dirlast = 0;   // 誕生時に頭が向いている方向
+            direction = 3;          // 次に進む方向
             dirratio = 0;
             speed = 40;
             rainbowCowntdown = 0;
@@ -409,7 +411,7 @@ namespace Snake82
         }
 
         // 指定地点から、指定された方向に1マス進んだ地点を返す
-        public Point GetNextPoint(CollisionMap map,Point po,int direc)
+        public virtual Point GetNextPoint(CollisionMap map,Point po,int direc)
         {
             switch (direc)
             {
@@ -664,7 +666,7 @@ namespace Snake82
         }
         protected int Speed(Game1 g)
         {
-            return speed * g.speedRate / Game1.SPEED_DEFAULT;
+            return speed * g.speedRate * g.speedZoom / Game1.SPEED_DEFAULT;
         }
 
         // 画面（ゲームマップ）のサイズ拡張に対応して、体の位置を調節する

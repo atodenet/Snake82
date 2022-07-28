@@ -4,7 +4,7 @@ using System.Diagnostics;
 
 namespace Atode
 {
-    enum Key
+    public enum Key
     {
         Up,
         Down,
@@ -41,9 +41,9 @@ namespace Atode
             pressed = new int[(int)Key.Endmark];
             System.Array.Clear(pressed, 0, (int)Key.Endmark);
         }
-        public bool Get(int key)
+        public bool Get(Key key)
         {
-            if( pressed[key] != 0)
+            if (pressed[(int)key] != 0)
             {
                 return true;
             }
@@ -51,7 +51,7 @@ namespace Atode
         }
         public bool AnyKey()
         {
-            if( pressed[(int)Key.Up] == 1 ||
+            if (pressed[(int)Key.Up] == 1 ||
                 pressed[(int)Key.Down] == 1 ||
                 pressed[(int)Key.Left] == 1 ||
                 pressed[(int)Key.Right] == 1 ||
@@ -106,8 +106,8 @@ namespace Atode
             // 全画面化はF4、ウィンドウ化はF5に固定
             if ((kb.IsKeyDown(Keys.F4) && !isFullScreen) ||
                 (kb.IsKeyDown(Keys.F5) && isFullScreen) ||
-                (pad.IsConnected && (pad.Buttons.RightStick == ButtonState.Pressed) ))
-                {
+                (pad.IsConnected && (pad.Buttons.RightStick == ButtonState.Pressed)))
+            {
                 if (lasttime[(int)Key.Fullscreen] + REACTION_HARDWARE < iCounter)
                 {
                     Debug.WriteLine("RightStick or F4");
@@ -116,7 +116,7 @@ namespace Atode
                 }
             }
 
-            if (kb.IsKeyDown(Keys.F3) )
+            if (kb.IsKeyDown(Keys.F3))
             {   // 全画面解像度切り替え
                 if (lasttime[(int)Key.Screensize] + REACTION_SYSTEM < iCounter)
                 {
@@ -125,7 +125,7 @@ namespace Atode
                     lasttime[(int)Key.Screensize] = iCounter;
                 }
             }
-            
+
             if (kb.IsKeyDown(Keys.P) ||
                 (pad.IsConnected && (pad.Buttons.Start == ButtonState.Pressed)))
             {   // ゲームポーズ
@@ -219,5 +219,25 @@ namespace Atode
             }
         }
 
+
+        public bool Sense(Key key)
+        {
+            GamePadState pad = GamePad.GetState(PlayerIndex.One);
+            KeyboardState kb = Keyboard.GetState();
+
+            switch (key)
+            {
+                case Key.A:
+                    if (kb.IsKeyDown(Keys.Z) || kb.IsKeyDown(Keys.Enter) ||
+                        (pad.IsConnected && (pad.Buttons.A == ButtonState.Pressed)))
+                    {   // Aボタン
+                        return true;
+                    }
+                    break;
+                default:
+                    break;
+            }
+            return false;
+        }
     }
 }

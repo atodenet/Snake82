@@ -10,6 +10,8 @@ namespace Atode
     // SceneGameクラスが長くなりすぎるのでファイルを分割した。最低だな
     partial class SceneGame : Scene
     {
+        // アイテムや敵が新しく生まれる場所を選ぶ
+        // ランダムに沢山の場所を選び、その中で最も周囲の密度が低い場所を返す。
         private Point SearchMapSpace(Game1 g)
         {
             Point ret;
@@ -29,7 +31,8 @@ namespace Atode
                 p.Y = g.rand.Next(mapheight() - 2) + 1;
 
                 // 周囲の存在密度を点数化
-                otherscore = map.ScoreMap(p,false);
+                otherscore = map.ScoreMap(p,MapType.None);
+                // これまででもっと点数が低ければ、これを戻り値として記憶
                 if (othertop > otherscore)
                 {
                     othertop = otherscore;

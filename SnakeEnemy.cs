@@ -42,8 +42,8 @@ namespace Snake82
                 }
                 if (emergencyCheck)
                 {
-                    // 次のマスまで2/3以上進んでいたら、緊急回避発動チェック
-                    if(posratio > INTEGRAL_RANGE * 2 / 3)
+                    // 次のマスに進むまで指定フレーム数以内なら、緊急回避発動チェック
+                    if (posratio > (INTEGRAL_RANGE - Speed(g) * EMERGENCY_FRAME))
                     {
                         emergencyCheck = false;
                         TurnHead(g, map, true);
@@ -102,10 +102,10 @@ namespace Snake82
             // 進行方向ごとの危険度点数（危険なほど点数が高い）
             // -50は、自分自身（頭）がカウントされてしまっているのでそれを差し引く
             // 0だとゼロ除算エラーになるので+1
-            int scorefront = map.ScoreMap(GetNextPoint(map, body[headno], dfront), true) - 50 + 1;
+            int scorefront = map.ScoreMap(GetNextPoint(map, body[headno], dfront), MapType.Enemy) - 50 + 1;
             // 意味もなく曲がりまくらないよう前方優先にする。左右は危険度加点
-            int scoreleft = map.ScoreMap(GetNextPoint(map, body[headno], dleft), true) - 50 + 100;
-            int scoreright = map.ScoreMap(GetNextPoint(map, body[headno], dright), true) - 50 + 100;
+            int scoreleft = map.ScoreMap(GetNextPoint(map, body[headno], dleft), MapType.Enemy) - 50 + 100;
+            int scoreright = map.ScoreMap(GetNextPoint(map, body[headno], dright), MapType.Enemy) - 50 + 100;
 
             if (emergency)
             {

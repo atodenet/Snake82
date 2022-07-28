@@ -48,6 +48,8 @@ namespace Atode
     {
         public const int SCORE_MAX_OUTER = (100 * 4 + 50 * 8 + 33 * 8 + 25 * 4);    // 中心点を除く、周囲5x5全てに存在する場合のスコア
         public const int SCORE_CENTER = SCORE_MAX_OUTER*2;                          // これくらいにしないと中心点に物があってもなかなかよけてくれない
+        public const int SCORE_HEROHEAD = 100 * 2;                                  // 自機の頭はよけて欲しいので点数が高い
+        public const int SCORE_TITLEMIN = SCORE_HEROHEAD+33;                        // タイトル画面のアイテム配置用
         public const int SCORE_MAX = SCORE_MAX_OUTER + SCORE_CENTER;                // 中心点＋周囲が全部埋まった場合のスコア
         protected MapObject[] obj;
 
@@ -121,7 +123,7 @@ namespace Atode
         // enemyEye : true = 敵の目にはレインボウモードは見えない。レインボウに対して突進させるため。
         // 目の前に隣接して何かあれば100点
         // その場所自体に何かあれば1164点
-        public int ScoreMap(Point p,bool enemyEye)
+        public int ScoreMap(Point p,MapType eye)
         {
             int score = 0;
             // 周囲5x5マスをすべてサーチ
@@ -150,9 +152,13 @@ namespace Atode
                     MapObject mo = obj[map[x, y]];
                     if (mo.chip != MapChip.None)
                     {
-                        if(enemyEye && (mo.chip == MapChip.RainbowHead || mo.chip == MapChip.RainbowBody || mo.chip == MapChip.RainbowTail))
+                        if(eye==MapType.Enemy && (mo.chip == MapChip.RainbowHead || mo.chip == MapChip.RainbowBody || mo.chip == MapChip.RainbowTail))
                         {
                             // 敵の目で、かつ対象がレインボーであればカウント対象外
+                        }
+                        else if(eye==MapType.Hero && mo.chip == MapChip.Item)
+                        {
+                            // 味方で、かつ対象がアイテムであればカウント対象外
                         }
                         else
                         {
@@ -162,7 +168,7 @@ namespace Atode
                                 int singleScore = 100 / distance;
                                 if(mo.chip==MapChip.SnakeHead || mo.chip == MapChip.RainbowHead)
                                 {   // 頭は特に避けて欲しいので高点数
-                                    singleScore = 200;
+                                    singleScore = SCORE_HEROHEAD;
                                 }
                                 score += singleScore;
                             }

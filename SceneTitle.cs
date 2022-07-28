@@ -6,6 +6,12 @@ using System;
 
 namespace Atode
 {
+    enum TitlePhase
+    {
+        None = 0,
+        Demo,
+        Rush,
+    }
     // タイトル画面の選択メニュー
     enum MenuType
     {
@@ -42,6 +48,8 @@ namespace Atode
         protected const int MAPOBJECT_ENEMYTOP = MAPOBJECT_ITEMTOP + ITEM_NUM;  // 先頭ENEMYオブジェクト番号
         protected const int MAPOBJECT_MAX = MAPOBJECT_ENEMYTOP + ENEMY_MAX * Snake.MAPOBJECT_SNAKEPATTERN;     // オブジェクトの最大数
         private SnakeDemo snake;
+        private SnakeRush[] enemy;
+
         private Item item;
         private MenuInfo[] menu;
         private int menuSelect;
@@ -53,6 +61,8 @@ namespace Atode
         private int appearNumber;
         private const int FULLSCREEN_REACTION = 150;    // フルスクリーン変更はハードウェア操作なので頻繁にされるとトラブルの元となる
         private int fullscreenCounter;
+        // ゲーム中のフェーズ管理
+        private TitlePhase phasenow = TitlePhase.Rush;
 
 
         private bool enableDeath = false; 
@@ -81,16 +91,67 @@ namespace Atode
             menu[4] = new MenuInfo("AUTO PILOT", MenuType.AutoPilot, false, 1);
             menu[5] = new MenuInfo("FULL SCREEN", MenuType.FullScreen, true, 1);
             menu[6] = new MenuInfo("EXIT", MenuType.Exit, true, 1);
+
         }
 
         public void Init(Game1 g)
         {
             upcounter = 0;
+            
             // 蛇が死ぬモードと死なないモードを繰り返す
             enableDeath = !enableDeath;
 
             // ゲームマップは画面サイズより狭い 画面の上１行はステータス行、右端と左端はミラー行
             map.AllocMap( g.celwidth() - 1, g.celheight() - 1);
+
+            // 必ずAllocMapの後で（コンストラクタでは画面サイズ不明で実施不可）
+            // 開幕ラッシュ用スネークのインスタンス作成
+            if (enemy == null)
+            {
+                int mapObjectNo = MAPOBJECT_ENEMYTOP;
+                enemy = new SnakeRush[g.celheight()];
+                Color[] rushcolor = new Color[11]{  // 1個多め
+                    new Color( 0xa7, 0xff, 0x00 ),
+                    new Color( 0xff, 0xf5, 0x00 ),
+                    new Color( 0xff, 0x93, 0x00 ),
+                    new Color( 0xff, 0x31, 0x00 ),
+                    new Color( 0xff, 0x00, 0x3c ),
+                    new Color( 0xff, 0x00, 0x9e ),
+                    new Color( 0xfe, 0x00, 0xff ),
+                    new Color( 0x9c, 0x00, 0xff ),
+                    new Color( 0x3a, 0x00, 0xff ),
+                    new Color( 0x00, 0x28, 0xff ),
+                    new Color( 0x00, 0x8a, 0xff )};
+
+                for (int y = 0; y<g.celheight(); y++)
+                {
+                    SnakeRush newenemy = new SnakeRush(mapObjectNo,rushcolor[y%rushcolor.Length]);
+                    enemy[y] = newenemy;
+                    mapObjectNo += Snake.MAPOBJECT_SNAKEPATTERN;
+                }
+            }
+            // ラッシュスネーク初期化(位置と方向の指定）
+            int left = -1;
+            int right = g.celwidth();
+            for (int y = enemy.Length - 1; 0 <= y; y--)
+            {
+                int rushdirection;
+                Point pos;
+                pos.Y = y;
+                if (y % 2 == 1)
+                {
+                    pos.X = left;
+                    left--;
+                    rushdirection = 3;
+                }
+                else
+                {
+                    pos.X = right;
+                    right++;
+                    rushdirection = 1;
+                }
+                enemy[y].Init(pos, rushdirection);
+            }
 
             // 自機を初期化、位置を指定
             snake.Init(new Point(g.celwidth() / 2, g.celheight() / 2 + 2));
@@ -107,8 +168,8 @@ namespace Atode
                 menu[4].visible = true;
             }
             if (g.autopilotAppear)
-            {   // 隠し機能が登場したので
-                menuLevel = 1;  // OPTION画面を見せつける
+            {   // 隠し機能が新規公開されたので
+                menuLevel = 1;  // TOPメニューではなくOPTION画面を強制的に見せつける
                 menuSelect = 4;
                 appearCounter = INTEGRAL_RANGE;
                 appearNumber = 1;
@@ -124,13 +185,14 @@ namespace Atode
             // 入力処理
             if (KEY_RELEASE_WAIT < upcounter)
             {   // ゲーム終了時にボタンが押されていると、またすぐゲームが始まってしまわないよう少し待つ
-                if (g.inp.Get((int)Key.A))
+                if (g.inp.Get(Key.A))
                 {   // 決定
                     switch (menu[menuSelect].type)
                     {
                         case MenuType.Start:
                             // ゲーム開始へ
                             nextScene = Scn.Game;
+                            phasenow = TitlePhase.Demo; // タイトル画面に戻った時にまたラッシュの出番の必要はない。
                             break;
                         case MenuType.Option:
                             // オプション画面へ
@@ -148,7 +210,7 @@ namespace Atode
                             break;
                     }
                 }
-                if (g.inp.Get((int)Key.Up))
+                if (g.inp.Get(Key.Up))
                 {   // メニューを上へ
                     do
                     {
@@ -159,7 +221,7 @@ namespace Atode
                         }
                     } while (menu[menuSelect].level != menuLevel || menu[menuSelect].visible == false);
                 }
-                if (g.inp.Get((int)Key.Down))
+                if (g.inp.Get(Key.Down))
                 {   // メニューを下へ
                     do
                     {
@@ -170,7 +232,7 @@ namespace Atode
                         }
                     } while (menu[menuSelect].level != menuLevel || menu[menuSelect].visible == false);
                 }
-                if (g.inp.Get((int)Key.Left))
+                if (g.inp.Get(Key.Left))
                 {
                     //  メニューを左へ
                     if (menu[menuSelect].type == MenuType.Speed)
@@ -201,7 +263,7 @@ namespace Atode
                         }
                     }
                 }
-                if (g.inp.Get((int)Key.Right))
+                if (g.inp.Get(Key.Right))
                 {
                     //  メニューを右へ
                     if (menu[menuSelect].type == MenuType.Speed)
@@ -234,70 +296,89 @@ namespace Atode
                 }
             }
 
-            // マップ描画
-            map.ClearMap();
-            snake.Plot(map);
-            item.Plot(map);
-            // 自機を動かす
-            bool eatItemMode = (item.modenow == SnakeMode.Active);  // アイテムがあればまっすぐ取りに行く
-            if( snake.Update(g, map, eatItemMode) == 1)
+            if(phasenow == TitlePhase.Rush)
             {
-                item.SetDeath();
-            }
-            // アイテムを動かす
-            item.Update();
-
-            if(enableDeath)
-            {   // 無敵モードではない 衝突判定を行う
-                MapObject mo = snake.GetHit(g,map);
-                if (map.IsSnakeChip(mo.chip))
-                {   // 頭が蛇に衝突した
-                    if( mo.chip==MapChip.SnakeHead || mo.chip == MapChip.RainbowHead)
+                bool isactive = false;
+                for(int i = 0; i < enemy.Length; i++)
+                {
+                    enemy[i].Update(g,map);
+                    if(enemy[i].modenow == SnakeMode.Active)
                     {
-                        // 自分の頭であれば何もしない
-                    }
-                    else
-                    {
-                        snake.SetDeath(true);
-                        item.SetDeath();    // アイテムも消す
+                        isactive = true;
                     }
                 }
-
-                if( snake.modenow == SnakeMode.Standby)
+                if (isactive == false)
                 {
-                    snake.Reborn(new Point(g.celwidth() / 2, g.celheight() / 2 + 2));
+                    phasenow = TitlePhase.Demo;
                 }
             }
-            // アイテムが無ければ
-            if( item.modenow == SnakeMode.Death && snake.modenow == SnakeMode.Active)
-            {   // アイテムを配置する
-                if (g.rand.Next(20) < 1)
+            else
+            {
+                // マップ描画
+                map.ClearMap();
+                snake.Plot(map);
+                item.Plot(map);
+                // 自機を動かす
+                bool eatItemMode = (item.modenow == SnakeMode.Active);  // アイテムがあればまっすぐ取りに行く
+                if (snake.Update(g, map, eatItemMode) == 1)
                 {
-                    // 場所を決める
-                    const int ITEM_FORWARD = 2; // 進行方向の何マス先にアイテムを置くか
-                    Point po = snake.GetHeadPoint();
-                    switch (snake.direction)
-                    {
-                        case 0:
-                            po.Y -= ITEM_FORWARD;
-                            break;
-                        case 1:
-                            po.X -= ITEM_FORWARD;
-                            break;
-                        case 2:
-                            po.Y += ITEM_FORWARD;
-                            break;
-                        case 3:
-                            po.X += ITEM_FORWARD;
-                            break;
-                    }
-                    // 座標がマップ内であること＋ミラー行（上端＆左端）でないこと
-                    if (0 < po.X && po.X < mapwidth() && 0 < po.Y && po.Y < mapheight())
-                    {
-                        int score = map.ScoreMap(po,false);
-                        if (score < 100 || enableDeath == false)
+                    item.SetDeath();
+                }
+                // アイテムを動かす
+                item.Update();
+
+                if (enableDeath)
+                {   // 無敵モードではない 衝突判定を行う
+                    MapObject mo = snake.GetHit(g, map);
+                    if (map.IsSnakeChip(mo.chip))
+                    {   // 頭が蛇に衝突した
+                        if (mo.chip == MapChip.SnakeHead || mo.chip == MapChip.RainbowHead)
                         {
-                            item.Reborn(po);
+                            // 自分の頭であれば何もしない
+                        }
+                        else
+                        {
+                            snake.SetDeath(true);
+                            item.SetDeath();    // アイテムも消す
+                        }
+                    }
+
+                    if (snake.modenow == SnakeMode.Standby)
+                    {
+                        snake.Reborn(new Point(g.celwidth() / 2, g.celheight() / 2 + 2));
+                    }
+                }
+                // アイテムが無ければ
+                if (item.modenow == SnakeMode.Death && snake.modenow == SnakeMode.Active)
+                {   // アイテムを配置する
+                    if (g.rand.Next(20) < 1)
+                    {
+                        // 場所を決める
+                        const int ITEM_FORWARD = 2; // 進行方向の何マス先にアイテムを置くか
+                        Point po = snake.GetHeadPoint();
+                        switch (snake.direction)
+                        {
+                            case 0:
+                                po.Y -= ITEM_FORWARD;
+                                break;
+                            case 1:
+                                po.X -= ITEM_FORWARD;
+                                break;
+                            case 2:
+                                po.Y += ITEM_FORWARD;
+                                break;
+                            case 3:
+                                po.X += ITEM_FORWARD;
+                                break;
+                        }
+                        // 座標がマップ内であること＋ミラー行（上端＆左端）でないこと
+                        if (0 < po.X && po.X < mapwidth() && 0 < po.Y && po.Y < mapheight())
+                        {
+                            int score = map.ScoreMap(po, MapType.Item);
+                            if (score <= CollisionMap.SCORE_TITLEMIN || enableDeath == false)
+                            {
+                                item.Reborn(po);
+                            }
                         }
                     }
                 }
@@ -480,9 +561,20 @@ namespace Atode
             g.spriteBatch.Begin(samplerState: SamplerState.PointClamp);
             base.DrawGround(g, 0);
 
-            // 蛇を描画
-            snake.Draw(g, mapwidth(), mapheight(), 0);
-            item.Draw(g, 0);
+            if (phasenow == TitlePhase.Rush)
+            {   // 開幕ラッシュスネークを描画
+                for (int i = 0; i < enemy.Length; i++)
+                {
+                    enemy[i].Draw(g, mapwidth(), mapheight(), 0);
+                }
+            }
+            else
+            {
+                // 蛇を描画
+                snake.Draw(g, mapwidth(), mapheight(), 0);
+                item.Draw(g, 0);
+            }
+
 
             // オプションメニューでauto pilotメニュー表示ありの場合はスペースがないのでタイトル表示をカット
             if (menuLevel==0 || g.autopilotVisible == false)

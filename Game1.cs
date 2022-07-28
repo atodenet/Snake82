@@ -19,6 +19,7 @@ namespace Snake82
         private int _pauselogo;
         public const int SPEED_DEFAULT = 10;        // ゲームのスピード標準値
         public int speedRate = SPEED_DEFAULT;       // ゲームのスピード
+        public int speedZoom = 1;                   // 速度倍率
 
         public GraphicsDeviceManager graphics;
         public SpriteBatch spriteBatch;
@@ -131,7 +132,7 @@ namespace Snake82
                 // ユーザー操作をここで入力
                 inp.Update(graphics.IsFullScreen);
 
-                if (inp.Get((int)Key.Back))
+                if (inp.Get(Key.Back))
                 {
                     if(_scheneNo == Scn.Title || _scheneNo == Scn.Boot)
                     {   // タイトル画面でBackボタンを押されたらプログラム終了
@@ -159,7 +160,7 @@ namespace Snake82
                 }
                 // システム系操作完了
 
-                if (inp.Get((int)Key.Pup))
+                if (inp.Get(Key.Pup))
                 {   // デバッグ表示用
                     collisionVisible = !collisionVisible;
                 }
@@ -169,7 +170,8 @@ namespace Snake82
                     UpdateScene(this);
                 }
 
-                if(inp.Get((int)Key.LB) == true){
+                // ポーズ中の表示変更（二段階）ShiftキーとゲームパッドLBボタン
+                if(inp.Get(Key.LB) == true){
                     if (_pauselogo == 0)
                     {
                         _pauselogo = PAUSE_INVISIVLE_TIME;
@@ -180,6 +182,15 @@ namespace Snake82
                         _pauseinvisible = PAUSE_INVISIVLE_TIME;
                         _pauselogo = 0;
                     }
+                }
+
+                if (inp.Sense(Key.A))
+                {   // Aボタン/Z/Enterで一時的スピードアップ
+                    speedZoom = 2;
+                }
+                else
+                {
+                    speedZoom = 1;
                 }
 
                 // 時間カウンタ
@@ -276,6 +287,7 @@ namespace Snake82
                     BackColor = _scenegame.BackColor;
                     inp.SetReactionFast(true);
                     scr.CelInit(CEL_WIDTH_START,CEL_HEIGHT_START);
+                    speedZoom = 1;
                     _scenegame.Init(this);
                     Debug.WriteLine("Scene Game");
                     break;

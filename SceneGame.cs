@@ -32,7 +32,8 @@ namespace Atode
 
         // 隠し機能の公開条件判定
         private int challengeCounter = 0;           // 公開するために必要な条件の連続回数
-        private const int CHALLENGE_GOAL = 1;//5;       // この連続回数以上になれば機能公開
+//debug        private const int CHALLENGE_GOAL = 5;       // この連続回数以上になれば機能公開
+        private const int CHALLENGE_GOAL = 1;       // この連続回数以上になれば機能公開
         private const int CHALLENGE_MAXSIZE = 39;   // stage10以下で死ぬ
 
 
@@ -131,23 +132,23 @@ namespace Atode
             //--------------------------------------------------------------------------------
             // ユーザーによる操作
             // 戻るボタン処理はここではなくGame1で（ポーズ中も有効にするため）
-            if (g.inp.Get((int)Key.Up))
+            if (g.inp.Get(Key.Up))
             {
                 hero.SetDirection(0);
             }
-            if (g.inp.Get((int)Key.Down))
+            if (g.inp.Get(Key.Down))
             {
                 hero.SetDirection(2);
             }
-            if (g.inp.Get((int)Key.Left))
+            if (g.inp.Get(Key.Left))
             {
                 hero.SetDirection(1);
             }
-            if (g.inp.Get((int)Key.Right))
+            if (g.inp.Get(Key.Right))
             {
                 hero.SetDirection(3);
             }
-            if (g.inp.Get((int)Key.A))
+            if (g.inp.Get(Key.A))
             {   // スキップボタン
                 if(phasenow == PlayPhase.Gameover)
                 {   // ゲームオーバーアニメーションをスキップ
@@ -496,13 +497,23 @@ namespace Atode
                 g.DrawString("Stage", xpos, 0, Color.LightBlue);
                 g.DrawString(stage.ToString(), xpos + 5, 0, Color.MidnightBlue);
             }
+            // 右端から
+            xpos = g.celwidth();
             // スピード表示
-            if(g.speedRate != Game1.SPEED_DEFAULT)
+            if (g.speedRate != Game1.SPEED_DEFAULT)
             {   // 標準スピードの場合は表示なし
                 String ratestr = g.speedRate.ToString();
-                xpos = g.celwidth() - ratestr.Length;
+                xpos -= ratestr.Length;
                 g.DrawString(ratestr, xpos, 0, Color.DarkSeaGreen);
             }
+            // オートパイロット表示
+            if (g.autopilotEnable)
+            {
+                String autostr = "AT";
+                xpos -= autostr.Length;
+                g.DrawString(autostr, xpos, 0, Color.DeepPink);
+            }
+
 
             if (phasenow == PlayPhase.Ranking)
             {   // ランキング表示
