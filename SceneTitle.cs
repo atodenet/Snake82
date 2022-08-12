@@ -163,17 +163,20 @@ namespace Atode
             menuLevel = 0;  // 最上位階層
             appearCounter = 0;
             appearNumber = 0;
-            if (g.autopilotVisible)
-            {
-                menu[4].visible = true;
-            }
             if (g.autopilotAppear)
             {   // 隠し機能が新規公開されたので
                 menuLevel = 1;  // TOPメニューではなくOPTION画面を強制的に見せつける
                 menuSelect = 4;
                 appearCounter = INTEGRAL_RANGE;
                 appearNumber = 1;
+                g.autopilotUnlock = true;
+                g.autopilotEnable = true;
                 g.autopilotAppear = false;
+            }
+            // セーブデータでunlockされているケースもある
+            if (g.autopilotUnlock)
+            {
+                menu[4].visible = true;
             }
 
             base.Init();
@@ -439,7 +442,7 @@ namespace Atode
             if (0 < menuLevel )
             {
                 cy -= SUBMENU_LIFT;
-                if (g.autopilotVisible)
+                if (g.autopilotUnlock)
                 {
                     cy -= SUBMENU_LIFT;
                 }
@@ -577,7 +580,7 @@ namespace Atode
 
 
             // オプションメニューでauto pilotメニュー表示ありの場合はスペースがないのでタイトル表示をカット
-            if (menuLevel==0 || g.autopilotVisible == false)
+            if (menuLevel==0 || g.autopilotUnlock == false)
             {
                 // タイトル文字表示 色は明滅させる
                 string titlestr = "Snake82";
@@ -606,11 +609,13 @@ namespace Atode
                     g.DrawString(titlestr.Substring(i, 1), cx++, cy, titlecolor);
                 }
             }
-#if false
-            // コピーライト表示
-            cx = Game1.copyright.Length - ((upcounter / 20) % (Game1.copyright.Length*2));
-            g.DrawString(Game1.copyright, cx, g.celheight()-1, Color.White * (float)0.05);
-#endif
+
+            if (g.totalPlay % 20 == 0)
+            {   // ときどきコピーライト表示（プレイ回数の区切り目）
+                cx = g.celwidth() - ((upcounter / 20) % (g.celwidth()+ Game1.copyright.Length));
+                g.DrawString(Game1.copyright, cx, g.celheight() - 1, Color.White * (float)0.1);
+            }
+
             // ユーザー選択メニューを描画
             DrawMenu(g);
 

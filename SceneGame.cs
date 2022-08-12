@@ -2,7 +2,7 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
-using System.Diagnostics;
+using System.Collections.Generic;
 
 namespace Atode
 {
@@ -30,12 +30,6 @@ namespace Atode
         protected const int MAPOBJECT_ENEMYTOP = MAPOBJECT_ITEMTOP + ITEM_NUM;  // 先頭ENEMYオブジェクト番号
         protected const int MAPOBJECT_MAX = MAPOBJECT_ENEMYTOP + ENEMY_MAX * Snake.MAPOBJECT_SNAKEPATTERN;     // オブジェクトの最大数
 
-        // 隠し機能の公開条件判定
-        private int challengeCounter = 0;           // 公開するために必要な条件の連続回数
-//debug        private const int CHALLENGE_GOAL = 5;       // この連続回数以上になれば機能公開
-        private const int CHALLENGE_GOAL = 1;       // この連続回数以上になれば機能公開
-        private const int CHALLENGE_MAXSIZE = 39;   // stage10以下で死ぬ
-
 
         private const int CEL_CHANGE_RATE = 3;      // キャラクター画面拡大スピード
         private int celchangerate;                  // キャラクター画面拡大中はスピードを示す 普段は0
@@ -59,9 +53,10 @@ namespace Atode
         private int gameoverzoom;
         private Color[] gameoverpixel;
 
-        // Ranking phase
-        private int rankingCounter;
-
+        // ランキング画面用 Ranking phase
+        private int rankingCounter;                 // 最低表示期間用カウンタ
+        private int rankNow;                        // 今回のランク
+        List<PlayRecord> ranking;
 
 
         public SceneGame()
@@ -280,7 +275,7 @@ namespace Atode
                         }
                         if(enemy[no].CheckHit(g,map) == 1)
                         {
-                            hero.Grow(mapheight());
+                            hero.Grow(map);
                         }
                     }
 
@@ -304,23 +299,9 @@ namespace Atode
                     if (hero.modenow == SnakeMode.Death)
                     {
                         phasenow = PlayPhase.Death;
-                        // 死んだタイミングで隠し機能判定
-                        if (hero.length <= CHALLENGE_MAXSIZE)
-                        {   // 条件判定
-                            if(++challengeCounter == CHALLENGE_GOAL)
-                            {   // 隠し機能をONにする
-                                g.autopilotVisible = true;
-                                g.autopilotEnable = true;
-                                g.autopilotAppear = true;
-                            }
-                        }
-                        else
-                        {   // 条件を満たさない場合は、非情にもカウンターリセット
-                            if (challengeCounter < CHALLENGE_GOAL)
-                            {
-                                challengeCounter = 0;
-                            }
-                        }
+                        // ゲーム結果確定タイミングで行うべき処理
+                        // ランキング登録など
+                        GameResultProcess(g);
                     }
                     break;
                 case PlayPhase.Death:
@@ -409,25 +390,125 @@ namespace Atode
         private void DrawRanking(Game1 g)
         {
             int xleft;
-            int y = UPPER_PADDING;
-            bool mini;
+            int cx;
+            int cy = UPPER_PADDING;
+            bool fullinfo;
             string title;
-            const string titleLong = "Rank   Date    Size  Stage";
-            const string titleMini = "Rank   Date    Size";
+            String str;
+            const string titleLong = "Rank       Date Size Stage";
+            const string titleMini = "Rank       Date Size";
+            const string nodata = "No Record.";
+            const string autopilotMessage = "Autopilot ranking";
 
+            // ヘッダー行
             if (g.celwidth() < titleLong.Length)
             {
-                mini = true;
+                fullinfo = false;
                 title = titleMini;
             }
             else
             {
-                mini = false;
+                fullinfo = true;
                 title = titleLong;
             }
             xleft = (g.celwidth() - title.Length) / 2;
-            g.DrawString(title, xleft, y++, Color.LightBlue);
+            g.DrawString(title, xleft, cy, Color.LightBlue);
 
+            // 標準スピード以外であればヘッダー行にスピード表示
+            // ランキングはスピード毎に分かれているということを気づかせるため
+            if (g.speedRate != Game1.SPEED_DEFAULT)
+            {
+                cx = xleft + 4; // "Rank"の文字列直後の位置
+                g.DrawString("speed"+g.speedRate.ToString(), cx, cy, Color.DarkSeaGreen);
+            }
+            cy++;
+
+            // ランキング行
+            if (ranking == null)
+            {
+                xleft = (g.celwidth() - nodata.Length) / 2;
+                g.DrawString(nodata, xleft, cy++, Color.White);
+            }
+            else
+            {
+                int ymax = g.celheight()-1;
+                if (g.autopilotEnable)
+                {
+                    ymax--;
+                }
+                for(int no=0; no < ranking.Count; no++)
+                {
+                    const int RRANK = 4;
+                    const int RDATE = RRANK + 1 + 10;
+                    const int RSIZE = RDATE + 1 + 4;
+                    const int RSTAGE = RSIZE + 1 + 5;
+                    PlayRecord play = ranking[no];
+                    Color color = Color.White;
+                    if(no == rankNow)
+                    {
+                        color = Color.Yellow;
+                    }
+
+                    // rank
+                    int rank = no + 1;
+                    switch (rank)
+                    {
+                        case 1:
+                            str = "1st";
+                            break;
+                        case 2:
+                            str = "2nd";
+                            break;
+                        case 3:
+                            str = "3rd";
+                            break;
+                        default:
+                            str = rank.ToString();
+                            if(rank <= 10)
+                            {
+                                str += "th";
+                            }
+                            break;
+                    }
+                    cx = xleft + RRANK - str.Length;
+                    g.DrawString(str, cx, cy, color);
+                    // date
+                    str = play.playdate.ToString("d");
+                    cx = xleft + RDATE - str.Length;
+                    g.DrawString(str, cx, cy, color);
+                    // size
+                    str = play.size.ToString();
+                    cx = xleft + RSIZE - str.Length;
+                    g.DrawString(str, cx, cy, color);
+                    if(fullinfo)
+                    {
+                        // stage
+                        str = play.stage.ToString();
+                        cx = xleft + RSTAGE - str.Length;
+                        g.DrawString(str, cx, cy, color);
+                    }
+
+                    cy++;
+                    if (ymax < cy)
+                    {
+                        break;
+                    }
+                }
+            }
+
+            // オートパイロット注意書き
+            if (g.autopilotEnable)
+            {
+                if (g.celwidth() < autopilotMessage.Length)
+                {
+                    xleft = g.celwidth() - ((upcounter / 20) % (autopilotMessage.Length + g.celwidth()));
+                }
+                else
+                {
+                    xleft = (g.celwidth() - autopilotMessage.Length) / 2;
+                }
+                g.DrawString(autopilotMessage, xleft, cy, Color.DeepPink * (float)0.5);
+            }
         }
 
         // ゲーム画面描画

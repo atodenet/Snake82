@@ -9,7 +9,6 @@ namespace Snake82
 {
     class SnakeHero : Snake
     {
-        protected bool emergencyCheck;
         public SnakeHero(int mapobjectno):base(mapobjectno)
         {
             headcolor = Color.White;
@@ -21,7 +20,6 @@ namespace Snake82
             // 基底クラスで設定した値を上書き
             direction = 0; dirlast = 0; // 上向き
             dirratio = INTEGRAL_RANGE;
-            emergencyCheck = true;
         }
 
         // 頭が次のマスへ進んだらtrueを返す
@@ -29,34 +27,31 @@ namespace Snake82
         {
             bool newMoved = base.Update(g, map);
 
+            // オートパイロット衝突回避
+            AutoPilot(g, map);
+            return newMoved;
+        }
+
+        public void AutoPilot(Game1 g, CollisionMap map)
+        {
             if (g.autopilotEnable)
             {   // 自機の自動衝突回避ロジック
                 if (modenow == SnakeMode.Active)
                 {
-                    if (newMoved)
-                    {   // 次のマスへ進んだら、チェックを有効化
-                        emergencyCheck = true;
-                    }
-                    if (emergencyCheck)
+                    // 次のマスに進むまで指定フレーム数以内なら、緊急回避発動チェック
+                    if (posratio > (INTEGRAL_RANGE - Speed(g) * EMERGENCY_FRAME))
                     {
-                        // 次のマスに進むまで指定フレーム数以内なら、緊急回避発動チェック
-                        if (posratio > (INTEGRAL_RANGE - Speed(g)* EMERGENCY_FRAME))
-                        {
-                            if( TurnHead(g, map))
-                            {   // 敵は1回だけだが、自機は次のマスに進むまで何回も緊急回避する
-                                emergencyCheck = false;
-                            }
-                        }
+                       // 敵は1回だけだが、自機は次のマスに進むまで何回も緊急回避する
+                        EmergencyTurnHead(g, map);
                     }
                 }
             }
-            return newMoved;
         }
 
         // 障害直前で回避する
         // 次の進行方向を決定する
         // return 曲がったらtrue
-        private bool TurnHead(Game1 g, CollisionMap map)
+        private bool EmergencyTurnHead(Game1 g, CollisionMap map)
         {
             // 進行先の候補は前方、左、右の３つ
             // 危険点数をつけて、危険点数の逆数に比例してガチャして決める 
@@ -120,21 +115,21 @@ namespace Snake82
 
 
         // 成長する 敵を倒したり、アイテムを獲得したり
-        public void Grow(int height)
+        public void Grow(CollisionMap map)
         {
             AddBody();
             SetRainbow();
 
             // スピードアップ判定
             int spup = 0;   // 1;   // デフォルト値
-            if (growstep <= height) // 移動距離が高さ未満なら1up
+            if (growstep < map.mapheight()/2) // 移動距離が指定距離未満なら1up
             {
-                Debug.WriteLine("Growstep Speedup");
+                Debug.WriteLine("Growstep Speedup("+growstep);
                 spup++;
             }
-            if(growturn <= 3)       // 方向転換が3回以下なら1up
+            if(growturn <= 1)       // 方向転換が指定回数以下なら1up
             {
-                Debug.WriteLine("Growturn Speedup");
+                Debug.WriteLine("Growturn Speedup("+growturn);
                 spup++;
             }
             Debug.WriteLine("Speedup "+spup);
@@ -153,7 +148,7 @@ namespace Snake82
 
             if (mo.chip == MapChip.Item)
             {   // アイテムを取った
-                Grow(map.mapheight());
+                Grow(map);
             }
             else if (mo.chip == MapChip.SnakeBody || mo.chip == MapChip.SnakeTail || mo.chip == MapChip.RainbowBody || mo.chip == MapChip.RainbowTail)
             {   // 頭が自分の体に衝突した
@@ -163,7 +158,7 @@ namespace Snake82
             {   // 頭が敵に衝突した
                 if ( IsRainbow() )
                 {   // 無敵モード 敵を倒す
-                    Grow(map.mapheight());
+                    Grow(map);
                 }
                 else
                 {

@@ -25,21 +25,23 @@ namespace Snake82
         public SpriteBatch spriteBatch;
         public Input inp;
         public Vga scr;     // Screen情報（ゲーム画面の解像度、キャラクタ画面の情報）
-        public RecordData rec;
         public Texture2D fonts = null;
         public Texture2D txgameover = null;
         public Random rand;
-        
+        // セーブデータ
+        public RecordData rec;
+        public int totalPlay = 0;   // 通算ゲームプレイ回数（これまでゲームオーバーになった回数）
+
         private bool _resized = false;
         private Viewport _viewedge;
         private BasicEffect effect;
         private VertexPositionColor[] vertexpFullscreen;
 
-
         // オートパイロット関係
-        public bool autopilotVisible = false;       // ユーザーにこの機能を公開するか
+        public bool autopilotUnlock = false;       // ユーザーにこの機能を公開するか
         public bool autopilotEnable = false;        // ユーザーによるオートパイロットのON/OFF
         public bool autopilotAppear = false;        // ユーザー告知
+
 
         // シーン関係
         private Scn _scheneNo = Scn.None;
@@ -103,12 +105,25 @@ namespace Snake82
         protected override void Initialize()
         {
             // TODO: Add your initialization logic here
-            
+
             // セーブデータをロードする Screen初期化より前に
-            rec.Load();
-            Debug.WriteLine("SaveData " + rec.width + " x " + rec.height);
+            if (rec.Load() == false)
+            {
+                // セーブデータファイルのヘッダ部読み込みでエラーが出た場合はセーブデータ初期化
+                rec.width = 0;
+                rec.height = 0;
+                rec.fullscreen = false;
+                rec.speedRate = speedRate;
+                rec.autopilotUnlock = autopilotUnlock;
+                rec.autopilotEnable = autopilotEnable;
+            }
             // Screen初期化 （ウィンドウサイズを指定）
             scr.Init(this, rec.width, rec.height, rec.fullscreen);
+            // OPTION設定値
+            speedRate = rec.speedRate;
+            autopilotUnlock = rec.autopilotUnlock;
+            autopilotEnable = rec.autopilotEnable;
+            totalPlay = rec.totalPlay;
 
             base.Initialize();
         }
@@ -303,11 +318,16 @@ namespace Snake82
                     break;
                 case Scn.Quit:
                     // プログラムを終了させる
-                    OnExit();
+                    SaveData();
                     Exit();
                     break;
                 case Scn.Title:
                 default:
+                    // ランキングデータが更新されていれば一旦セーブ
+                    if (rec.saveupdate)
+                    {
+                        SaveData();
+                    }
                     // タイトル画面へ
                     UpdateScene = _scenetitle.Update;
                     DrawScene = _scenetitle.Draw;
@@ -322,10 +342,17 @@ namespace Snake82
             _scheneNo = sceneNo;
         }
 
-        private void OnExit()
-        { // プログラム終了時の処理
-            // ゲームデータのセーブ
-            rec.Save(scr.windowwidth(), scr.windowheight(), graphics.IsFullScreen);
+        // ゲームデータのセーブ
+        private void SaveData()
+        {
+            rec.width = scr.windowwidth();
+            rec.height = scr.windowheight();
+            rec.fullscreen = graphics.IsFullScreen;
+            rec.speedRate = speedRate;
+            rec.autopilotUnlock = autopilotUnlock;
+            rec.autopilotEnable = autopilotEnable;
+            rec.totalPlay = totalPlay;
+            rec.Save();
         }
 
         private void ClearEdge()

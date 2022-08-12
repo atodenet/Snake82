@@ -10,6 +10,49 @@ namespace Atode
     // SceneGameクラスが長くなりすぎるのでファイルを分割した。最低だな
     partial class SceneGame : Scene
     {
+        // 隠し機能の公開条件判定
+        private int challengeCounter = 0;           // 公開するために必要な条件の連続回数
+//debug        private const int CHALLENGE_GOAL = 5;       // この連続回数以上になれば機能公開
+        private const int CHALLENGE_GOAL = 1;       // この連続回数以上になれば機能公開
+        private const int CHALLENGE_MAXSIZE = 39;   // stage10以下で死ぬ
+
+        // ゲーム結果確定タイミングで行うべき処理
+        // ゲームオーバー時の各種処理
+        // ランキング登録、隠し条件判定等
+        private void GameResultProcess(Game1 g)
+        {
+            rankNow = -1;
+
+            // ランキングは（スピードｘオートパイロット設定）毎にもっている
+            // ランキング登録
+            rankNow = g.rec.AddPlayRecord(g.speedRate, hero.length, GetStage(), DateTime.Now, g.autopilotEnable);
+
+            // ランキング取得（表示用）
+            ranking = g.rec.GetRanking(g.speedRate,g.autopilotEnable);
+
+            // まだ隠し機能がロック解除されていなければ、ロック解除条件の更新
+            if(g.autopilotUnlock == false)
+            {
+                // 死んだタイミングで隠し機能のロック解除の判定
+                if (hero.length <= CHALLENGE_MAXSIZE)
+                {   // 条件判定
+                    if (++challengeCounter == CHALLENGE_GOAL)
+                    {   // 隠し機能をONにする
+                        g.autopilotAppear = true;
+                    }
+                }
+                else
+                {   // 条件を満たさない場合は、非情にもカウンターリセット
+                    if (challengeCounter < CHALLENGE_GOAL)
+                    {
+                        challengeCounter = 0;
+                    }
+                }
+            }
+            // 通算ゲームプレイ回数を更新
+            g.totalPlay++;
+        }
+
         // アイテムや敵が新しく生まれる場所を選ぶ
         // ランダムに沢山の場所を選び、その中で最も周囲の密度が低い場所を返す。
         private Point SearchMapSpace(Game1 g)
