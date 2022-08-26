@@ -1,8 +1,11 @@
 ﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Media;
+using Microsoft.Xna.Framework.Audio;
 
 using Atode;
 using System;
+using System.IO;
 using System.Diagnostics;
 using System.Collections.Generic;
 
@@ -28,6 +31,15 @@ namespace Snake82
         public Texture2D fonts = null;
         public Texture2D txgameover = null;
         public Random rand;
+        public Song jingle1;
+        public Song music1;
+        public Song music2;
+        public Song music9;
+        public SoundEffect seItem;
+        public SoundEffect seEnemy;
+        public SoundEffect seDead;
+
+        private bool musicResume = false;
         // セーブデータ
         public RecordData rec;
         public int totalPlay = 0;   // 通算ゲームプレイ回数（これまでゲームオーバーになった回数）
@@ -102,6 +114,7 @@ namespace Snake82
             // デバッグ用
             hitRect = new List<Rectangle>();
         }
+
         protected override void Initialize()
         {
             // TODO: Add your initialization logic here
@@ -133,10 +146,31 @@ namespace Snake82
             spriteBatch = new SpriteBatch(GraphicsDevice);
 
             // TODO: use this.Content to load your game content here
-            fonts = Content.Load<Texture2D>("font16snake");
+            // フォント＆スプライト画像ファイルの読み込み
+            String filename = rec.GetName(".png");
+            try
+            {
+                // スキンカスタマイズ機能 -  アプリケーションと同じフォルダに Snake82.png があればそれを読み込む
+                using (FileStream stream = new FileStream(filename, FileMode.Open))
+                {
+                    fonts = Texture2D.FromStream(GraphicsDevice, stream);
+                }
+            }
+            catch
+            { // スキンが読み込まれなければ、プログラム内蔵のデフォルトテクスチャを読み込む
+                fonts = Content.Load<Texture2D>("font16snake");
+            }
             txgameover = Content.Load<Texture2D>("gameover9");
             effect = new BasicEffect(GraphicsDevice);
             effect.VertexColorEnabled = true;
+
+            jingle1 = Content.Load<Song>("jingle1");
+            music1 = Content.Load<Song>("music1");
+            music2 = Content.Load<Song>("music2");
+            music9 = Content.Load<Song>("music9");
+            seEnemy = Content.Load<SoundEffect>("seEnemy");
+            seDead = Content.Load<SoundEffect>("seDead");
+            seItem = Content.Load<SoundEffect>("seItem2");
         }
 
         protected override void Update(GameTime gameTime)
@@ -144,6 +178,12 @@ namespace Snake82
             // TODO: Add your update logic here
             if (IsActive)
             {   // アクティブウィンドウでなければゲーム停止
+                if (musicResume)
+                {
+                    MediaPlayer.Resume();
+                    musicResume = false;
+                }
+
                 // ユーザー操作をここで入力
                 inp.Update(graphics.IsFullScreen);
 
@@ -217,6 +257,17 @@ namespace Snake82
                 {
                     _pauseinvisible--;
                 }
+            }
+            else
+            {
+                // プログラムがバックグランド化された場合
+                // 音楽演奏中なら停止
+                if (MediaPlayer.State == MediaState.Playing)
+                {
+                    MediaPlayer.Pause();
+                    musicResume = true;
+                }
+
             }
 
             // シーンの切り替えが発生したのであればシーン切り替え

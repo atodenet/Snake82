@@ -37,3 +37,45 @@
 /processorParam:TextureFormat=Color
 /build:gameover9.png
 
+#begin jingle1.mp3
+/importer:Mp3Importer
+/processor:SongProcessor
+/processorParam:Quality=Best
+/build:jingle1.mp3
+
+#begin music1.mp3
+/importer:Mp3Importer
+/processor:SongProcessor
+/processorParam:Quality=Best
+/build:music1.mp3
+
+#begin music2.mp3
+/importer:Mp3Importer
+/processor:SongProcessor
+/processorParam:Quality=Best
+/build:music2.mp3
+
+#begin music9.ogg
+/importer:OggImporter
+/processor:SongProcessor
+/processorParam:Quality=Best
+/build:music9.ogg
+
+#begin seDead.ogg
+/importer:OggImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:seDead.ogg
+
+#begin seEnemy.mp3
+/importer:Mp3Importer
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:seEnemy.mp3
+
+#begin seItem2.ogg
+/importer:OggImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:seItem2.ogg
+

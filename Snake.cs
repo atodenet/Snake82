@@ -309,7 +309,8 @@ namespace Snake82
             return rc;
         }
 
-        // 頭が次のマスへ進んだらtrueを返す
+        // ゲーム進行
+        // return : 頭が次のマスへ進んだらtrueを返す
         public bool Update(Game1 g,CollisionMap map)
         {   // ゲームの進行
             bool rc = false;
@@ -321,7 +322,7 @@ namespace Snake82
                     posratio += Speed(g);
                     if (INTEGRAL_RANGE <= posratio)
                     {   // 次のマスへ進む
-                        posratio = 0;
+                        posratio -= INTEGRAL_RANGE;
                         GoNext(g, map);
                         // マスを進んだ場合、のちのちの難易度自動調整のために記録をつける
                         growstep++; // 進んだ距離

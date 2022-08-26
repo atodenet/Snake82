@@ -1,9 +1,7 @@
 ﻿using Snake82;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Media;
 using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace Atode
 {
@@ -12,8 +10,7 @@ namespace Atode
     {
         // 隠し機能の公開条件判定
         private int challengeCounter = 0;           // 公開するために必要な条件の連続回数
-//debug        private const int CHALLENGE_GOAL = 5;       // この連続回数以上になれば機能公開
-        private const int CHALLENGE_GOAL = 1;       // この連続回数以上になれば機能公開
+        private const int CHALLENGE_GOAL = 5;       // この連続回数以上になれば機能公開
         private const int CHALLENGE_MAXSIZE = 39;   // stage10以下で死ぬ
 
         // ゲーム結果確定タイミングで行うべき処理
@@ -150,5 +147,69 @@ namespace Atode
                 apple[no].SetStartup(pos);
             }
         }
+
+        private void MusicStart(Game1 g)
+        {
+            if (MediaPlayer.State == MediaState.Stopped)
+            {
+                // ジングル曲再生スタート
+                MediaPlayer.Play(g.jingle1);
+            }
+        }
+
+        // ゲームプレイ中の音楽再生
+        private void MusicPlay(Game1 g)
+        {
+            // 曲再生が終わっていればゲーム曲スタート
+            if (MediaPlayer.State == MediaState.Stopped)
+            {
+                if (GetStage() < MUSIC_CHANGE_STAGE)
+                {
+                    MediaPlayer.Play(g.music1);
+                    musicnow = MusicPhase.Play1;
+                }
+                else
+                {
+                    MediaPlayer.Play(g.music2);
+                    musicnow = MusicPhase.Play2;
+                }
+            }
+            // ステージが進んだら高ステージ曲に切り替え
+            if (musicnow == MusicPhase.Play1)
+            {
+                if (MUSIC_CHANGE_STAGE <= GetStage())
+                {
+                    MediaPlayer.Volume -= 0.02f;
+                    if (MediaPlayer.Volume <= 0f)
+                    {
+                        MediaPlayer.Stop();
+                        MediaPlayer.Volume = 1f;
+                        musicnow = MusicPhase.Play2;
+                    }
+                }
+            }
+        }
+
+        // ゲームオーバー時の音楽再生
+        private void MusicGameover(Game1 g)
+        {
+            if (musicnow == MusicPhase.Play1 || musicnow == MusicPhase.Play2)
+            {
+                MediaPlayer.Volume -= 0.02f;
+                if (MediaPlayer.Volume <= 0f)
+                {
+                    MediaPlayer.Stop();
+                    MediaPlayer.Volume = 1f;
+                    musicnow = MusicPhase.Gameover;
+                }
+            }
+            if (MediaPlayer.State == MediaState.Stopped)
+            {
+                MediaPlayer.Play(g.music9);
+                musicnow = MusicPhase.Gameover;
+            }
+
+        }
+
     }
 }

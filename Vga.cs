@@ -188,6 +188,10 @@ namespace Atode
                     game.graphics.PreferredBackBufferWidth = MID_WIDTH_FULL;
                     game.graphics.PreferredBackBufferHeight = MID_HEIGHT_FULL;
                 }
+                // ウィンドウサイズを保存
+                _windowWidth = game.graphics.PreferredBackBufferWidth;
+                _windowHeight = game.graphics.PreferredBackBufferHeight;
+
                 game.graphics.ApplyChanges();
             }
         }

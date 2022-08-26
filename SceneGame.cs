@@ -1,6 +1,7 @@
 ﻿using Snake82;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Media;
 using System;
 using System.Collections.Generic;
 
@@ -14,6 +15,14 @@ namespace Atode
         Death,
         Gameover,
         Ranking,
+    }
+    enum MusicPhase
+    {
+        None = 0,
+        Jingle,
+        Play1,
+        Play2,
+        Gameover,
     }
     partial class SceneGame : Scene
     {
@@ -40,6 +49,7 @@ namespace Atode
 
         // ゲーム中のフェーズ管理
         private PlayPhase phasenow;
+        private MusicPhase musicnow;
         // startup animation phase
         private const int STARTUP_SPEED = 2;
         private const int STARTUP_DEGREE_STAY = 15;                     // スタートアップアニメーションの余韻
@@ -58,6 +68,8 @@ namespace Atode
         private int rankNow;                        // 今回のランク
         List<PlayRecord> ranking;
 
+        // 曲
+        protected const int MUSIC_CHANGE_STAGE = 26;
 
         public SceneGame()
         {
@@ -84,6 +96,7 @@ namespace Atode
             // 始まりのフェーズを指定
             phasenow = PlayPhase.Startup;
             startupdeg = STARTUP_DEGREE;
+            musicnow = MusicPhase.Jingle;
 
             // ゲームマップ関係変数初期化
             // ゲームマップは画面サイズより狭い 画面の上１行はステータス行
@@ -117,8 +130,13 @@ namespace Atode
             // ランキング表示用
             rankingCounter = 0;
 
+            // 曲演奏中なら止める
+            MediaPlayer.Stop();
+            MediaPlayer.Volume = 1f;
+
             base.Init();
         }
+
         public new void Update(Game1 g)
         {
             int no;
@@ -243,6 +261,8 @@ namespace Atode
                             // アイテムを取った
                             // 取られたアイテムを除去
                             apple[mo.localNo].SetDeath();
+                            // アイテム取得音
+                            g.seItem.CreateInstance().Play();
                             break;
                         case MapChip.EnemyHead:
                         case MapChip.EnemyBody:
@@ -250,6 +270,8 @@ namespace Atode
                             // 敵を倒した
                             // 倒された敵を殺す
                             enemy[mo.localNo].SetDeath(true);
+                            // 敵を倒した音
+                            g.seEnemy.CreateInstance().Play();
                             break;
                     }
                 }
@@ -275,7 +297,11 @@ namespace Atode
                         }
                         if(enemy[no].CheckHit(g,map) == 1)
                         {
+                            // 敵が自機に当たって死んだ
+                            // 自機を成長
                             hero.Grow(map);
+                            // 敵を倒した音
+                            g.seEnemy.CreateInstance().Play();
                         }
                     }
 
@@ -295,13 +321,20 @@ namespace Atode
             switch (phasenow)
             {
                 case PlayPhase.Play:
-                    // ゲームプレイ中、自機が死んだらデスアニメモードへ遷移
+                    // ゲームプレイ中
+                    // 自機が死んだ。デスアニメモードへ遷移する。
                     if (hero.modenow == SnakeMode.Death)
                     {
                         phasenow = PlayPhase.Death;
                         // ゲーム結果確定タイミングで行うべき処理
                         // ランキング登録など
                         GameResultProcess(g);
+                        // 自機がやられた音
+                        g.seDead.CreateInstance().Play();
+                    }
+                    else
+                    {
+                        MusicPlay(g);
                     }
                     break;
                 case PlayPhase.Death:
@@ -315,6 +348,10 @@ namespace Atode
                         // X方向移動距離（CEL単位、1CEL移動=INTEGRAL_RANGE）右に隠れてスタート、左に隠れきるまでの距離 最後の+は余韻
                         gameoverpos = (g.celwidth() + g.txgameover.Width * gameoverzoom) * INTEGRAL_RANGE;
                     }
+                    else
+                    {
+                        MusicPlay(g);
+                    }
                     break;
                 case PlayPhase.Gameover:
                     // ゲームオーバーアニメーション処理
@@ -324,10 +361,12 @@ namespace Atode
                         phasenow = PlayPhase.Ranking;
                         StartGrountWave();
                     }
+                    MusicGameover(g);
                     break;
                 case PlayPhase.Ranking:
                     // ランキング表示
                     rankingCounter++;
+                    MusicGameover(g);
                     break;
                 case PlayPhase.Startup:
                     startupdeg -= STARTUP_SPEED;
@@ -336,6 +375,7 @@ namespace Atode
                         startupdeg = 0;
                         phasenow = PlayPhase.Play;    // ゲームプレイ開始
                     }
+                    MusicStart(g);
                     break;
             }
 
@@ -352,9 +392,11 @@ namespace Atode
                     celchangerate = CEL_CHANGE_RATE;
                 }
             }
+
             base.Update(g);
         }
 
+        //----------------------------------------------------------------------------------------------------------
         // ゲームオーバー時の背景アニメーション表示
         private void DrawGameover(Game1 g)
         {
@@ -386,6 +428,7 @@ namespace Atode
             }
         }
 
+        //----------------------------------------------------------------------------------------------------------
         // ランキング画面を表示
         private void DrawRanking(Game1 g)
         {
@@ -393,6 +436,7 @@ namespace Atode
             int cx;
             int cy = UPPER_PADDING;
             bool fullinfo;
+            bool drawFinish = false;
             string title;
             String str;
             const string titleLong = "Rank       Date Size Stage";
@@ -436,8 +480,14 @@ namespace Atode
                 {
                     ymax--;
                 }
-                for(int no=0; no < ranking.Count; no++)
+                // ランキングは上から順番に表示していく（ランキング画面表示開始からの時間で制御）
+                for(int no=0; no < rankingCounter/10; no++)
                 {
+                    if(ranking.Count <= no)
+                    {
+                        drawFinish = true;
+                        break;
+                    }
                     const int RRANK = 4;
                     const int RDATE = RRANK + 1 + 10;
                     const int RSIZE = RDATE + 1 + 4;
@@ -491,13 +541,14 @@ namespace Atode
                     cy++;
                     if (ymax < cy)
                     {
+                        drawFinish = true;
                         break;
                     }
                 }
             }
 
             // オートパイロット注意書き
-            if (g.autopilotEnable)
+            if (g.autopilotEnable && drawFinish)
             {
                 if (g.celwidth() < autopilotMessage.Length)
                 {
@@ -511,6 +562,7 @@ namespace Atode
             }
         }
 
+        //----------------------------------------------------------------------------------------------------------
         // ゲーム画面描画
         public new void Draw(Game1 g)
         {
@@ -558,7 +610,7 @@ namespace Atode
 
             // 上部ステータス行
             Rectangle starea;
-            starea = g.scr.TextBox(0, 0, g.celwidth(), 1);
+            starea = g.scr.TextBox(-1, 0, g.celwidth()+2, 1);   // 拡大中に左右に隙間が出来ないよう左右それぞれ+1
             //starea.Width += g.scr.TextWidth(g.celwidth() - 1, 1);
             Primitive.FillRectangle(g.spriteBatch, starea, Color.Honeydew);
             // 体の長さを表示

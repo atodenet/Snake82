@@ -22,12 +22,12 @@ namespace Snake82
         {
             base.Init(startPos);
             direction = dirnow = dirlast = rushdirection;   // 進行方向
-            speed = INTEGRAL_RANGE / 3;
+            speed = INTEGRAL_RANGE / 5;
             modenow = SnakeMode.Active;
         }
 
-        // ゲーム進行処理
-        // return: 0=通常 1=deathからactiveに変わるときにtrueを返すので、呼び出し元はRebornを実行すること。
+        // ゲーム進行
+        // return : true=頭が次のマスへ進んだらtrueを返す
         public new bool Update(Game1 g, CollisionMap map)
         {
             // 最初は体長１にしかできない。マス移動時しか体長を伸ばせない。
@@ -38,20 +38,24 @@ namespace Snake82
             bool rc = base.Update(g, map);
             if (rc)
             {
+#if TITLESNAP
+                // マス目にピッタリそろった綺麗な画面撮影用
+                posratio = 0;
+#endif
                 Rectangle rect = GetTailRect(g, map);
                 switch (direction)
                 {
                     case 1:
                         // 左へ進む
                         if(rect.X + rect.Width < 0)
-                        {
+                        {   // 画面から消えたらStandbyに変更
                             SetAfterDeath();
                         }
                         break;
                     default:
                         // 右へ進む
                         if (g.scr.viewwidth()< rect.X)
-                        {
+                        {   // 画面から消えたらStandbyに変更
                             SetAfterDeath();
                         }
                         break;

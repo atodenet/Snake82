@@ -1,6 +1,7 @@
 ﻿using Snake82;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Media;
 using System;
 
 
@@ -304,7 +305,13 @@ namespace Atode
                 bool isactive = false;
                 for(int i = 0; i < enemy.Length; i++)
                 {
-                    enemy[i].Update(g,map);
+                    bool newstep = enemy[i].Update(g,map);
+#if TITLESNAP
+                    if (newstep)
+                    {
+                        g.inp.bPause = true;
+                    }
+#endif
                     if(enemy[i].modenow == SnakeMode.Active)
                     {
                         isactive = true;
@@ -406,6 +413,17 @@ namespace Atode
                             appearCounter = 0;
                             break;
                     }
+                }
+            }
+
+            // 音楽が演奏中なら停止
+            if (MediaPlayer.State == MediaState.Playing)
+            {
+                MediaPlayer.Volume -= 0.02f;
+                if (MediaPlayer.Volume <= 0f)
+                {
+                    MediaPlayer.Stop();
+                    MediaPlayer.Volume = 1f;
                 }
             }
 
@@ -526,6 +544,9 @@ namespace Atode
                 blinking -= GUIDE_PERIOD / 2;
                 guidestr = "\a Button";
             }
+#if TITLESNAP
+            guidestr = "\a Button"; // 画面撮影用には見栄えがいい
+#endif
             if (GUIDE_PERIOD / 4 < blinking)
             {
                 blinking = GUIDE_PERIOD / 2 - blinking;

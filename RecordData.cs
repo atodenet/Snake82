@@ -133,22 +133,52 @@ namespace Atode
 
         private string GetFolder()
         {
-            // これはWindows依存か？
+            // 要注意。このメソッドはWindows依存の可能性あり。
             string folder = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
             folder += "\\";
             folder += COMPANY;
             return folder;
         }
-        private string GetName()
+
+        // アプリケーションファイル名を返す
+        public string GetName(String Extension)
         {
             string name = GetFolder();
             name += "\\";
             name += filename;
-            name += ".dat";
+            name += Extension;
             return name;
         }
 
+        // セーブファイル名を返す
+        private string GetName()
+        {
+            return GetName(".dat");
+        }
+
         // ゲームの設定とランキングデータをセーブ
+        public int Logging(String message)
+        {
+            // 書き込み先フォルダ存在チェックはしない。書けなければ諦める。
+            try
+            {
+                using (var stream = File.Open(GetName(".log"), FileMode.Append))
+                {
+                    using (var writer = new StreamWriter(stream))
+                    {
+                        writer.Write(message+"\n");
+                    }
+                }
+            }
+            catch
+            { // ファイル書き込み失敗
+                return 2;
+            }
+            return 0; // 0はOK
+        }
+
+        // ゲームの設定とランキングデータをセーブ
+        // return 0:success 1:ディレクトリエラー 2:書き込みエラー
         public int Save()
         {
             string folder = GetFolder();
