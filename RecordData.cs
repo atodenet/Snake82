@@ -32,7 +32,8 @@ namespace Atode
     public class RecordData
     {   // セーブデータ管理クラス
         private const string COMPANY = "atode.net";
-        private string filename = "noname.dat";     // コンストラクタで上書きされる
+        private const string titleName = "Snake82";
+
         public const int MAX_RECORDSPEED = 50;
         public const int MAX_RANK = 100;
         private List<PlayRecord>[] playRoot;
@@ -51,9 +52,8 @@ namespace Atode
 
         public bool saveupdate = false; // セーブ後にアップデートされたか
         
-        public RecordData(string title)
+        public RecordData()
         {
-            filename = title;
             // speed0は欠番なので個数は最大スピード+1、さらにオートパイロット有無でx2
             playRoot = new List<PlayRecord>[(MAX_RECORDSPEED+1)*2];
         }
@@ -131,7 +131,13 @@ namespace Atode
             return playRoot[GetRank(speed,autopilot)];
         }
 
-        private string GetFolder()
+
+        //-------------------------------------------------------------------------------
+        // ここからはフォルダ＆ファイル操作メソッド
+        // staticはセーブデータ用に限らない汎用
+        //
+        // アプリケーション固有ファイル保存フォルダ名取得
+        static private string GetFolder()
         {
             // 要注意。このメソッドはWindows依存の可能性あり。
             string folder = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
@@ -140,26 +146,52 @@ namespace Atode
             return folder;
         }
 
+        // アプリケーションフォルダが存在しなければ作成する。
+        // return true:フォルダが存在する（作成成功を含む） false:フォルダ作成に失敗
+        static public bool PrepareFolder()
+        {
+            string folder = GetFolder();
+
+            if (!Directory.Exists(folder))
+            {
+                try
+                {
+                    Directory.CreateDirectory(folder);
+                }
+                catch
+                { // ディレクトリ作成失敗（セーブ失敗）
+                    return false;
+                }
+            }
+            return true;
+        }
         // アプリケーションファイル名を返す
-        public string GetName(String Extension)
+        static public string GetName(String Extension)
         {
             string name = GetFolder();
             name += "\\";
-            name += filename;
+            name += titleName;
             name += Extension;
             return name;
         }
 
         // セーブファイル名を返す
-        private string GetName()
+        static private string GetName()
         {
             return GetName(".dat");
         }
 
-        // ゲームの設定とランキングデータをセーブ
-        public int Logging(String message)
+        // ログファイルへ書き込み
+        // リリースビルドで調査の必要が出た場合に使う
+        // return 0:成功 1:フォルダ作成に失敗 2:書き込み失敗
+        static public int Logging(String message)
         {
-            // 書き込み先フォルダ存在チェックはしない。書けなければ諦める。
+            // アプリケーションファイルフォルダを用意
+            if (!PrepareFolder())
+            {
+                return 1;
+            }
+
             try
             {
                 using (var stream = File.Open(GetName(".log"), FileMode.Append))
@@ -177,22 +209,18 @@ namespace Atode
             return 0; // 0はOK
         }
 
+
+        //-------------------------------------------------------------------------------
+        // ここからはセーブデータ取り扱い用メソッド
+        //
         // ゲームの設定とランキングデータをセーブ
-        // return 0:success 1:ディレクトリエラー 2:書き込みエラー
+        // return 0:成功 1:フォルダ作成に失敗 2:書き込み失敗
         public int Save()
         {
-            string folder = GetFolder();
-
-            if (!Directory.Exists(folder))
+            // アプリケーションファイルフォルダを用意
+            if (!PrepareFolder())
             {
-                try
-                {
-                    Directory.CreateDirectory(folder);
-                }
-                catch
-                { // ディレクトリ作成失敗（セーブ失敗）
-                    return 1;
-                }
+                return 1;
             }
 
             try
@@ -245,6 +273,7 @@ namespace Atode
             return 0; // 0はOK
         }
 
+        // セーブデータのロード
         // return true:成功もしくはランキングデータ読み込みエラー false:ヘッダ読み込み失敗
         public bool Load()
         { // セーブデータを読み込む

@@ -14,7 +14,6 @@ namespace Snake82
     public class Game1 : Game
     {
         public const string copyright = "Copyright(c)2022 metys";
-        private const string _titleName = "Snake82";
         private const int CEL_WIDTH_START = 18;       // 横キャラクター数の初期値
         private const int CEL_HEIGHT_START = 10;      // 縦キャラクター数の初期値
         private const int PAUSE_INVISIVLE_TIME = 120;   // PAUSE表示を消す期間
@@ -91,7 +90,7 @@ namespace Snake82
             rand = new Random();
             inp = new Input();
             scr = new Vga();
-            rec = new RecordData(_titleName);
+            rec = new RecordData();
 
             _sceneboot = new SceneBoot();
             _scenetitle = new SceneTitle();
@@ -147,7 +146,7 @@ namespace Snake82
 
             // TODO: use this.Content to load your game content here
             // フォント＆スプライト画像ファイルの読み込み
-            String filename = rec.GetName(".png");
+            String filename = RecordData. GetName(".png");
             try
             {
                 // スキンカスタマイズ機能 -  アプリケーションと同じフォルダに Snake82.png があればそれを読み込む
